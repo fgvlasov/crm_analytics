@@ -38,3 +38,9 @@ infra/minio/data/
 *.log
 .coverage.*
 coverage.xml
+
+.cursor/
+.cursorrules
+.cursorrules.md
+
+README.md
