@@ -48,10 +48,10 @@ curl -s -X POST http://localhost:8000/api/v1/auth/login \
 
 ## Feature flags
 
-Phase 1 has no flag. Phases 2–6 are off by default:
+Phase 1 has no flag. Phase 2 Odoo connector is enabled in `.env.example` for local/dev:
 
 ```env
-FEATURE_ODOO_CONNECTOR=false
+FEATURE_ODOO_CONNECTOR=true
 FEATURE_FAST_AI=false
 FEATURE_DEEP_RESEARCH=false
 FEATURE_SMART_RPT=false

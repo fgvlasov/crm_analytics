@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <record id="res_config_settings_view_form_leadintel" model="ir.ui.view">
+    <field name="name">res.config.settings.view.form.leadintel</field>
+    <field name="model">res.config.settings</field>
+    <field name="inherit_id" ref="base.res_config_settings_view_form"/>
+    <field name="arch" type="xml">
+      <xpath expr="//form" position="inside">
+        <app string="LeadIntel" name="leadintel_connector" groups="leadintel_connector.group_leadintel_admin">
+          <block title="Connection">
+            <setting string="Enable LeadIntel">
+              <field name="leadintel_enabled"/>
+            </setting>
+            <setting string="SaaS Base URL">
+              <field name="leadintel_saas_base_url" placeholder="http://localhost:8000"/>
+            </setting>
+            <setting string="Tenant Slug">
+              <field name="leadintel_tenant_slug" placeholder="coldex-demo"/>
+            </setting>
+            <setting string="Instance Name">
+              <field name="leadintel_instance_name"/>
+            </setting>
+            <setting string="Instance ID">
+              <field name="leadintel_odoo_instance_id" readonly="1"/>
+            </setting>
+            <setting string="Integration Token">
+              <field name="leadintel_integration_token" password="True"/>
+            </setting>
+            <setting string="Webhook Secret">
+              <field name="leadintel_webhook_secret" password="True"/>
+            </setting>
+            <div class="mt16">
+              <button name="action_leadintel_register" type="object" string="Connect / Register" class="btn-primary"/>
+              <button name="action_leadintel_test_connection" type="object" string="Test Connection" class="btn-secondary"/>
+            </div>
+          </block>
+          <block title="Sync">
+            <setting string="Sync Mode">
+              <field name="leadintel_sync_mode"/>
+            </setting>
+            <setting string="Auto Sync New Leads">
+              <field name="leadintel_auto_sync_new"/>
+            </setting>
+            <setting string="Auto Sync Updated Leads">
+              <field name="leadintel_auto_sync_updated"/>
+            </setting>
+            <setting string="Auto Pull Results">
+              <field name="leadintel_auto_pull_results"/>
+            </setting>
+            <setting string="Max Messages Per Lead">
+              <field name="leadintel_max_messages"/>
+            </setting>
+          </block>
+        </app>
+      </xpath>
+    </field>
+  </record>
+</odoo>

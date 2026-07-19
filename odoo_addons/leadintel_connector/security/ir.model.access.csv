@@ -1,0 +1,7 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_leadintel_assessment_user,leadintel.assessment.user,model_leadintel_assessment,group_leadintel_user,1,0,0,0
+access_leadintel_assessment_manager,leadintel.assessment.manager,model_leadintel_assessment,group_leadintel_manager,1,1,1,0
+access_leadintel_assessment_admin,leadintel.assessment.admin,model_leadintel_assessment,group_leadintel_admin,1,1,1,1
+access_leadintel_sync_log_manager,leadintel.sync.log.manager,model_leadintel_sync_log,group_leadintel_manager,1,0,0,0
+access_leadintel_sync_log_admin,leadintel.sync.log.admin,model_leadintel_sync_log,group_leadintel_admin,1,1,1,1
+access_leadintel_webhook_log_admin,leadintel.webhook.log.admin,model_leadintel_webhook_log,group_leadintel_admin,1,1,1,1

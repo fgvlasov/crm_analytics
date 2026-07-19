@@ -47,4 +47,4 @@ health:
 	curl -sS http://localhost:8000/healthz
 
 odoo-package:
-	@echo "Odoo packaging is Phase 2 — see .cursorrules/18_PHASED_DEVELOPMENT_PLAN.md"
+	bash scripts/odoo-package.sh

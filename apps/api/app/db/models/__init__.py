@@ -1,3 +1,13 @@
+from app.db.models.odoo import (
+    Lead,
+    LeadSourceType,
+    LeadStatus,
+    OdooConnectionMode,
+    OdooIdempotencyRecord,
+    OdooInstance,
+    OdooInstanceStatus,
+    hash_integration_token,
+)
 from app.db.models.tenant import SecretRef, Tenant, TenantUser, TenantUserRole, TenantUserStatus
 
 __all__ = [
@@ -6,4 +16,12 @@ __all__ = [
     "TenantUserRole",
     "TenantUserStatus",
     "SecretRef",
+    "OdooInstance",
+    "OdooInstanceStatus",
+    "OdooConnectionMode",
+    "Lead",
+    "LeadSourceType",
+    "LeadStatus",
+    "OdooIdempotencyRecord",
+    "hash_integration_token",
 ]

@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <record id="crm_lead_view_form_leadintel" model="ir.ui.view">
+    <field name="name">crm.lead.form.leadintel</field>
+    <field name="model">crm.lead</field>
+    <field name="inherit_id" ref="crm.crm_lead_view_form"/>
+    <field name="arch" type="xml">
+      <xpath expr="//header" position="inside">
+        <button name="action_leadintel_sync" type="object" string="LeadIntel Sync"
+                class="btn-secondary" groups="leadintel_connector.group_leadintel_user"/>
+        <button name="action_leadintel_fast_assessment" type="object" string="LeadIntel Fast Assessment"
+                class="btn-secondary" groups="leadintel_connector.group_leadintel_manager"/>
+        <button name="action_leadintel_deep_research" type="object" string="LeadIntel Deep Research"
+                class="btn-secondary" groups="leadintel_connector.group_leadintel_manager"/>
+        <button name="action_open_leadintel_dashboard" type="object" string="Open LeadIntel Dashboard"
+                class="btn-link" groups="leadintel_connector.group_leadintel_user"/>
+      </xpath>
+      <xpath expr="//notebook" position="inside">
+        <page string="LeadIntel AI" name="leadintel_ai" groups="leadintel_connector.group_leadintel_user">
+          <group>
+            <group>
+              <field name="leadintel_score"/>
+              <field name="leadintel_temperature"/>
+              <field name="leadintel_confidence"/>
+              <field name="leadintel_assessment_status"/>
+              <field name="leadintel_sync_status"/>
+            </group>
+            <group>
+              <field name="leadintel_project_type"/>
+              <field name="leadintel_customer_industry"/>
+              <field name="leadintel_last_sync_at"/>
+              <field name="leadintel_last_assessment_at"/>
+              <field name="leadintel_dashboard_url" widget="url"/>
+            </group>
+          </group>
+          <group string="Summary">
+            <field name="leadintel_summary" nolabel="1" colspan="2"/>
+          </group>
+          <group string="Recommended Action">
+            <field name="leadintel_recommended_action" nolabel="1" colspan="2"/>
+          </group>
+          <field name="leadintel_error_message" readonly="1"/>
+          <field name="leadintel_assessment_ids">
+            <list>
+              <field name="assessment_type"/>
+              <field name="status"/>
+              <field name="score_total"/>
+              <field name="temperature"/>
+              <field name="received_at"/>
+            </list>
+          </field>
+        </page>
+      </xpath>
+    </field>
+  </record>
+
+  <record id="crm_lead_view_tree_leadintel" model="ir.ui.view">
+    <field name="name">crm.lead.list.leadintel</field>
+    <field name="model">crm.lead</field>
+    <field name="inherit_id" ref="crm.crm_case_tree_view_leads"/>
+    <field name="arch" type="xml">
+      <xpath expr="//list" position="inside">
+        <field name="leadintel_score" optional="show"/>
+        <field name="leadintel_temperature" optional="show"/>
+        <field name="leadintel_sync_status" optional="hide"/>
+      </xpath>
+    </field>
+  </record>
+</odoo>

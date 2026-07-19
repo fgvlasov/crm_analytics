@@ -2,16 +2,170 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>LeadIntel Dashboard (Phase 1 stub)</title>
-    <style>
-      body { font-family: system-ui, sans-serif; margin: 2rem; max-width: 40rem; }
-      code { background: #f4f4f4; padding: 0.1rem 0.3rem; }
-    </style>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>LeadIntel — Client Portal</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="css/app.css" />
   </head>
   <body>
-    <h1>LeadIntel</h1>
-    <p>Dashboard placeholder for Phase 1. API is at <code>http://localhost:8000</code>.</p>
-    <p>Features: <a href="http://localhost:8000/api/v1/features">/api/v1/features</a></p>
-    <p>Health: <a href="http://localhost:8000/healthz">/healthz</a></p>
+    <div id="app">
+      <!-- Login -->
+      <section id="view-login" class="view login-view hidden">
+        <div class="login-panel">
+          <p class="brand">LeadIntel</p>
+          <h1>Sign in to your workspace</h1>
+          <p class="muted">Tenant-aware access for CRM analytics and Odoo sync.</p>
+          <form id="login-form" class="stack">
+            <label>
+              Tenant slug
+              <input name="tenant_slug" value="coldex-demo" required autocomplete="organization" />
+            </label>
+            <label>
+              Email
+              <input
+                name="email"
+                type="email"
+                value="admin@coldex-demo.example"
+                required
+                autocomplete="username"
+              />
+            </label>
+            <label>
+              Password
+              <input name="password" type="password" required autocomplete="current-password" />
+            </label>
+            <button type="submit" class="btn primary">Sign in</button>
+            <p id="login-error" class="error" hidden></p>
+          </form>
+        </div>
+        <div class="login-aside" aria-hidden="true">
+          <div class="aside-copy">
+            <p class="eyebrow">B2B lead intelligence</p>
+            <p class="aside-title">See what your CRM already knows — scored, synced, explained.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- App shell -->
+      <section id="view-app" class="view app-shell hidden">
+        <aside class="sidebar">
+          <div class="sidebar-brand">LeadIntel</div>
+          <nav class="nav">
+            <button type="button" class="nav-item active" data-route="overview">Overview</button>
+            <button type="button" class="nav-item" data-route="leads">Leads</button>
+            <button type="button" class="nav-item" data-route="odoo">Odoo integrations</button>
+            <button type="button" class="nav-item" data-route="features">Features</button>
+          </nav>
+          <div class="sidebar-foot">
+            <div id="user-chip" class="user-chip"></div>
+            <button type="button" id="btn-logout" class="btn ghost">Sign out</button>
+          </div>
+        </aside>
+
+        <main class="main">
+          <header class="topbar">
+            <div>
+              <h1 id="page-title">Overview</h1>
+              <p id="page-subtitle" class="muted">Workspace health and sync status</p>
+            </div>
+            <div id="api-status" class="pill">API</div>
+          </header>
+
+          <div id="page-overview" class="page">
+            <div class="stat-row" id="stat-row">
+              <article class="stat"><span class="stat-label">Leads</span><strong id="stat-leads">—</strong></article>
+              <article class="stat"><span class="stat-label">From Odoo</span><strong id="stat-odoo-leads">—</strong></article>
+              <article class="stat"><span class="stat-label">Odoo instances</span><strong id="stat-instances">—</strong></article>
+              <article class="stat"><span class="stat-label">Connected</span><strong id="stat-connected">—</strong></article>
+            </div>
+            <div class="panel">
+              <h2>Pipeline focus</h2>
+              <p class="muted">
+                Phase 2: Odoo sync is live. Fast AI scoring and tender collectors unlock in later
+                phases via feature flags.
+              </p>
+              <ul id="feature-hints" class="hint-list"></ul>
+            </div>
+          </div>
+
+          <div id="page-leads" class="page hidden">
+            <div class="toolbar">
+              <input id="lead-search" type="search" placeholder="Search leads…" />
+              <button type="button" id="btn-refresh-leads" class="btn">Refresh</button>
+            </div>
+            <div class="table-wrap">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Company</th>
+                    <th>Email</th>
+                    <th>Stage</th>
+                    <th>Source</th>
+                    <th>Sync</th>
+                    <th>Updated</th>
+                  </tr>
+                </thead>
+                <tbody id="leads-body">
+                  <tr><td colspan="7" class="muted">No leads yet</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <aside id="lead-detail" class="panel detail hidden">
+              <h2 id="lead-detail-title">Lead</h2>
+              <pre id="lead-detail-body" class="code-block"></pre>
+            </aside>
+          </div>
+
+          <div id="page-odoo" class="page hidden">
+            <div class="split">
+              <div class="panel">
+                <h2>Connected instances</h2>
+                <div id="odoo-list" class="stack"></div>
+                <p id="odoo-empty" class="muted">No Odoo instances yet.</p>
+              </div>
+              <div class="panel">
+                <h2>Register from dashboard</h2>
+                <p class="muted">
+                  Creates an instance and shows the token once. Paste it into Odoo Settings →
+                  LeadIntel, or use Connect / Register from the Odoo module.
+                </p>
+                <form id="odoo-form" class="stack">
+                  <label>Name <input name="name" required placeholder="Coldex Production" /></label>
+                  <label>Base URL <input name="base_url" required placeholder="https://odoo.example.com" /></label>
+                  <label>Company <input name="company_name" placeholder="Coldex Oy" /></label>
+                  <label>Database <input name="database_name" placeholder="prod" /></label>
+                  <label>Odoo version <input name="odoo_version" placeholder="19.0" /></label>
+                  <button type="submit" class="btn primary">Create integration</button>
+                </form>
+                <div id="odoo-once" class="once-box hidden">
+                  <p><strong>Save these now — shown once</strong></p>
+                  <p>Instance ID: <code id="once-id"></code></p>
+                  <p>Token: <code id="once-token"></code></p>
+                  <p>Webhook secret: <code id="once-secret"></code></p>
+                </div>
+                <p id="odoo-error" class="error" hidden></p>
+              </div>
+            </div>
+          </div>
+
+          <div id="page-features" class="page hidden">
+            <div class="panel">
+              <h2>Feature flags</h2>
+              <p class="muted">Controlled by SaaS environment. Phase 1 is always on.</p>
+              <div id="features-grid" class="feature-grid"></div>
+            </div>
+          </div>
+        </main>
+      </section>
+    </div>
+    <script src="js/config.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/app.js"></script>
   </body>
 </html>

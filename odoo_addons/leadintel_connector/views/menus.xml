@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <menuitem id="menu_leadintel_root" name="LeadIntel"
+            groups="leadintel_connector.group_leadintel_manager"
+            sequence="45"/>
+  <menuitem id="menu_leadintel_sync_log" name="Sync Logs"
+            parent="menu_leadintel_root"
+            action="action_leadintel_sync_log"
+            groups="leadintel_connector.group_leadintel_manager"
+            sequence="10"/>
+  <menuitem id="menu_leadintel_webhook_log" name="Webhook Logs"
+            parent="menu_leadintel_root"
+            action="action_leadintel_webhook_log"
+            groups="leadintel_connector.group_leadintel_admin"
+            sequence="20"/>
+</odoo>
