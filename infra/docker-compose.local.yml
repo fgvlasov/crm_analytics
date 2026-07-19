@@ -1,0 +1,3 @@
+# Local overrides placeholder — extend docker-compose.yml for developer machines.
+# Example: docker compose -f infra/docker-compose.yml -f infra/docker-compose.local.yml up
+services: {}

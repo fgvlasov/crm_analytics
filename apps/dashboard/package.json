@@ -1,0 +1,9 @@
+{
+  "name": "leadintel-dashboard",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Phase 1 static stub — Next.js app comes in later phases",
+  "scripts": {
+    "start": "python -m http.server 3000 --directory public"
+  }
+}
