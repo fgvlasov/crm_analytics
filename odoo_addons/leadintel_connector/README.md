@@ -32,3 +32,5 @@ Settings → LeadIntel:
 ## Security
 
 Groups: User / Manager / Administrator. Secrets visible to LeadIntel Administrators only.
+
+Odoo 19 note: groups use `privilege_id` / `res.groups.privilege` (not `category_id` on `res.groups`).
