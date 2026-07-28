@@ -1,28 +1,35 @@
-environment:
-  POSTGRES_USER: ${POSTGRES_USER}
-  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-  POSTGRES_DB: ${POSTGRES_DB}
-  REDIS_PASSWORD: ${REDIS_PASSWORD}
-  MINIO_ROOT_USER: ${MINIO_ROOT_USER}
-  MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+name: leadintel
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
 
 services:
   postgres:
     image: postgres:16-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    expose:
+      - "5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 10
+    logging: *default-logging
+    networks:
+      - leadintel_network
 
   redis:
-    image: redis:7-alpine
+    image: redis:7.4-alpine
+    restart: unless-stopped
     environment:
       REDIS_PASSWORD: ${REDIS_PASSWORD}
     healthcheck:
@@ -30,79 +37,129 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+    logging: *default-logging
+    networks:
+      - leadintel_network
 
   minio:
     image: minio/minio:latest
+    restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
     volumes:
       - minio_data:/data
+    expose:
+      - "9000"
+      - "9001"
+    ports:
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
+    logging: *default-logging
+    networks:
+      - leadintel_network
 
   minio-init:
     image: minio/mc:latest
+    restart: unless-stopped
     depends_on:
       minio:
         condition: service_started
-    entrypoint: >
-      /bin/sh -c "
-      sleep 3;
-      mc alias set local http://minio:9000 minioadmin minioadmin;
-      mc mb -p local/leadintel-local || true;
-      exit 0;
-      "
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        until mc alias set local http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD"; do
+          echo "Waiting for MinIO..."
+          sleep 2
+        done
+        mc mb --ignore-existing "local/$$MINIO_BUCKET"
+        echo "MinIO bucket is ready: $$MINIO_BUCKET"
+    logging: *default-logging
+    networks:
+      - leadintel_network
 
   api:
     build:
       context: ../apps/api
       dockerfile: Dockerfile
+    restart: unless-stopped
     env_file:
       - .env
     environment:
-      DATABASE_URL: postgresql+psycopg://leadintel:leadintel@postgres:5432/leadintel
-      REDIS_URL: redis://redis:6379/0
-      S3_ENDPOINT: http://minio:9000
-      APP_BASE_URL: http://localhost:8000
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-leadintel}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-leadintel}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      S3_ENDPOINT: ${S3_ENDPOINT:-http://minio:9000}
+      APP_BASE_URL: ${APP_BASE_URL:-https://leads.teodoo.com}
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz')"]
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3)
       interval: 10s
       timeout: 5s
-      retries: 10
-      start_period: 20s
+      retries: 12
+      start_period: 30s
+    logging: *default-logging
+    networks:
+      - leadintel_network
 
   workers:
     build:
       context: ../apps/workers
       dockerfile: Dockerfile
+    restart: unless-stopped
     env_file:
       - .env
     environment:
-      DATABASE_URL: postgresql+psycopg://leadintel:leadintel@postgres:5432/leadintel
-      REDIS_URL: redis://redis:6379/0
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-leadintel}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-leadintel}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      S3_ENDPOINT: ${S3_ENDPOINT:-http://minio:9000}
     depends_on:
+      postgres:
+        condition: service_healthy
       redis:
         condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
       api:
-        condition: service_started
+        condition: service_healthy
+    logging: *default-logging
+    networks:
+      - leadintel_network
 
   dashboard:
     build:
       context: ../apps/dashboard
       dockerfile: Dockerfile
+    restart: unless-stopped
+    init: true
+    env_file:
+      - .env
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     depends_on:
       api:
-        condition: service_started
+        condition: service_healthy
+    logging: *default-logging
+    networks:
+      - leadintel_network
 
 volumes:
   postgres_data:
+  redis_data:
   minio_data:
+networks:
+  leadintel_network:
+    driver: bridge
