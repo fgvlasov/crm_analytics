@@ -155,9 +155,10 @@ services:
 
   workers:
     build:
-      context: ../apps/workers
+      context: ../apps/api
       dockerfile: Dockerfile
     restart: unless-stopped
+    command: ["python", "-m", "app.scripts.worker_loop"]
     env_file:
       - .env
     environment:

@@ -2,10 +2,14 @@
   const $ = (sel) => document.querySelector(sel);
   const titles = {
     overview: ["Overview", "Workspace health and sync status"],
-    leads: ["Leads", "Normalized leads synced from Odoo and other sources"],
+    leads: ["Leads", "Scores, temperature, and Fast AI queue actions"],
+    providers: ["AI Providers", "BYOK connections for Fast Assessment"],
     odoo: ["Odoo integrations", "Connect CRM instances and manage tokens"],
     features: ["Features", "Phases enabled on this SaaS deployment"],
   };
+
+  let selectedLeadId = null;
+  let lastJobId = null;
 
   function show(el, on) {
     el.classList.toggle("hidden", !on);
@@ -23,6 +27,7 @@
     $("#page-subtitle").textContent = sub;
     if (route === "overview") loadOverview();
     if (route === "leads") loadLeads();
+    if (route === "providers") loadProviders();
     if (route === "odoo") loadOdoo();
     if (route === "features") loadFeatures();
   }
@@ -90,13 +95,24 @@
       data.items.forEach((lead) => {
         const tr = document.createElement("tr");
         tr.innerHTML = `
+          <td>${esc(lead.latest_score_total ?? "—")}</td>
+          <td>${esc(lead.latest_temperature || "—")}</td>
           <td>${esc(lead.name)}</td>
           <td>${esc(lead.company_name || "—")}</td>
-          <td>${esc(lead.email || "—")}</td>
           <td>${esc(lead.stage_name || "—")}</td>
-          <td>${esc(lead.source_type)}</td>
-          <td>${esc(lead.sync_status)}</td>
-          <td>${esc((lead.updated_at || "").slice(0, 19))}</td>`;
+          <td>${esc(lead.latest_assessment_status || "—")}</td>
+          <td><button type="button" class="btn" data-queue="${esc(lead.id)}">Fast AI</button></td>`;
+        tr.querySelector("[data-queue]").addEventListener("click", async (ev) => {
+          ev.stopPropagation();
+          try {
+            const job = await LeadIntelApi.queueFast(lead.id, true);
+            lastJobId = job.id;
+            alert(`Queued job ${job.id} (${job.status})`);
+            await loadLeads(search);
+          } catch (err) {
+            alert(err.message);
+          }
+        });
         tr.addEventListener("click", () => showLeadDetail(lead));
         body.appendChild(tr);
       });
@@ -105,11 +121,51 @@
     }
   }
 
-  function showLeadDetail(lead) {
+  async function showLeadDetail(lead) {
+    selectedLeadId = lead.id;
     const box = $("#lead-detail");
     show(box, true);
     $("#lead-detail-title").textContent = lead.name;
     $("#lead-detail-body").textContent = JSON.stringify(lead, null, 2);
+    const assessEl = $("#lead-assessment-body");
+    try {
+      const a = await LeadIntelApi.latestAssessment(lead.id);
+      assessEl.textContent = JSON.stringify(a, null, 2);
+    } catch {
+      assessEl.textContent = "No assessment yet.";
+    }
+  }
+
+  async function loadProviders() {
+    const list = $("#providers-list");
+    list.innerHTML = "";
+    try {
+      const items = await LeadIntelApi.providers();
+      if (!items.length) {
+        list.innerHTML = `<p class="muted">No providers yet — add a mock provider to start.</p>`;
+        return;
+      }
+      items.forEach((p) => {
+        const card = document.createElement("article");
+        card.className = "feature-card" + (p.is_default ? " on" : "");
+        card.innerHTML = `
+          <div class="flag">${esc(p.provider_type)} · ${esc(p.status)}</div>
+          <strong>${esc(p.name)}</strong>
+          <div class="muted">${esc(p.default_model)}</div>
+          <button type="button" class="btn" data-test="${esc(p.id)}">Test</button>`;
+        card.querySelector("[data-test]").addEventListener("click", async () => {
+          try {
+            const res = await LeadIntelApi.testProvider(p.id);
+            alert(JSON.stringify(res));
+          } catch (err) {
+            alert(err.message);
+          }
+        });
+        list.appendChild(card);
+      });
+    } catch (err) {
+      list.innerHTML = `<p class="error">${esc(err.message)}</p>`;
+    }
   }
 
   async function loadOdoo() {
@@ -217,6 +273,55 @@
       show(once, true);
       e.target.reset();
       await loadOdoo();
+    } catch (ex) {
+      err.textContent = ex.message;
+      show(err, true);
+    }
+  });
+
+  $("#btn-queue-fast")?.addEventListener("click", async () => {
+    if (!selectedLeadId) return;
+    try {
+      const job = await LeadIntelApi.queueFast(selectedLeadId, true);
+      lastJobId = job.id;
+      alert(`Queued ${job.id}`);
+      const lead = await LeadIntelApi.lead(selectedLeadId);
+      await showLeadDetail(lead);
+    } catch (err) {
+      alert(err.message);
+    }
+  });
+
+  $("#btn-run-latest-job")?.addEventListener("click", async () => {
+    if (!lastJobId) {
+      alert("Queue a job first");
+      return;
+    }
+    try {
+      const a = await LeadIntelApi.runJob(lastJobId);
+      $("#lead-assessment-body").textContent = JSON.stringify(a, null, 2);
+      await loadLeads();
+    } catch (err) {
+      alert(err.message);
+    }
+  });
+
+  $("#provider-form")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const err = $("#provider-error");
+    show(err, false);
+    const fd = new FormData(e.target);
+    try {
+      await LeadIntelApi.createProvider({
+        name: fd.get("name"),
+        provider_type: fd.get("provider_type"),
+        api_key: fd.get("api_key") || null,
+        base_url: fd.get("base_url") || null,
+        default_model: fd.get("default_model") || "gpt-4o-mini",
+        is_default: fd.get("is_default") === "on",
+      });
+      e.target.reset();
+      await loadProviders();
     } catch (ex) {
       err.textContent = ex.message;
       show(err, true);

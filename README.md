@@ -48,15 +48,15 @@ curl -s -X POST http://localhost:8000/api/v1/auth/login \
 
 ## Feature flags
 
-Phase 1 has no flag. Phase 2 Odoo connector is enabled in `.env.example` for local/dev:
-
 ```env
 FEATURE_ODOO_CONNECTOR=true
-FEATURE_FAST_AI=false
+FEATURE_FAST_AI=true
 FEATURE_DEEP_RESEARCH=false
 FEATURE_SMART_RPT=false
 FEATURE_WEB_NEWS_COLLECTORS=false
 ```
+
+Phase 3 Fast AI: providers at `/api/v1/providers`, queue at `/api/v1/leads/{id}/assessments/queue`, worker processes jobs via `python -m app.scripts.worker_loop`.
 
 Inspect active flags: `GET /api/v1/features`
 
@@ -87,3 +87,7 @@ Tests use SQLite in-memory by default (`APP_ENV=test`).
 ## Phase roadmap
 
 See [`.cursorrules/18_PHASED_DEVELOPMENT_PLAN.md`](.cursorrules/18_PHASED_DEVELOPMENT_PLAN.md).
+
+## Deploy / update VPS
+
+See [`docs/deployment.md`](docs/deployment.md): Portainer notes, `scripts/deploy.sh`, and GitHub Action auto-deploy on push to `main`.

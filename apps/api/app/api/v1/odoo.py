@@ -144,11 +144,11 @@ async def upsert_lead(
     service: OdooService = Depends(get_odoo_service),
 ) -> OdooLeadUpsertResponse:
     await _maybe_verify_signature(request, instance, service)
-    lead, created, _resp = service.upsert_lead(instance=instance, body=body)
+    lead, created, resp = service.upsert_lead(instance=instance, body=body)
     return OdooLeadUpsertResponse(
         lead_id=lead.id,
         status="accepted",
-        queued_jobs=[],
+        queued_jobs=list(resp.get("queued_jobs") or []),
         created=created,
     )
 

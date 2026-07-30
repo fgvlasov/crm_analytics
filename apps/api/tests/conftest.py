@@ -1,16 +1,17 @@
 import os
 
-# Must run before importing application modules.
-os.environ.setdefault("APP_ENV", "test")
-os.environ.setdefault("SECRET_KEY", "test-secret-key-at-least-32-characters")
-os.environ.setdefault("ENCRYPTION_MASTER_KEY", "test-encryption-master-key-32b!!")
-os.environ.setdefault("DATABASE_URL", "sqlite+pysqlite:///:memory:")
-os.environ.setdefault("SEED_DEMO", "false")
-os.environ.setdefault("FEATURE_ODOO_CONNECTOR", "false")
-os.environ.setdefault("FEATURE_FAST_AI", "false")
-os.environ.setdefault("FEATURE_DEEP_RESEARCH", "false")
-os.environ.setdefault("FEATURE_SMART_RPT", "false")
-os.environ.setdefault("FEATURE_WEB_NEWS_COLLECTORS", "false")
+# Must run before importing application modules. Force test defaults (do not use setdefault —
+# a developer .env may already export FEATURE_*=true).
+os.environ["APP_ENV"] = "test"
+os.environ["SECRET_KEY"] = "test-secret-key-at-least-32-characters"
+os.environ["ENCRYPTION_MASTER_KEY"] = "test-encryption-master-key-32b!!"
+os.environ["DATABASE_URL"] = "sqlite+pysqlite:///:memory:"
+os.environ["SEED_DEMO"] = "false"
+os.environ["FEATURE_ODOO_CONNECTOR"] = "false"
+os.environ["FEATURE_FAST_AI"] = "false"
+os.environ["FEATURE_DEEP_RESEARCH"] = "false"
+os.environ["FEATURE_SMART_RPT"] = "false"
+os.environ["FEATURE_WEB_NEWS_COLLECTORS"] = "false"
 
 import pytest
 from fastapi.testclient import TestClient
@@ -25,6 +26,13 @@ from app.main import app
 from app.services.auth_service import TenantService
 
 get_settings.cache_clear()
+
+
+@pytest.fixture(autouse=True)
+def _clear_settings_cache():
+    get_settings.cache_clear()
+    yield
+    get_settings.cache_clear()
 
 
 @pytest.fixture()

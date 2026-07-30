@@ -1,3 +1,13 @@
+from app.db.models.ai import (
+    AiProviderConnection,
+    AiProviderStatus,
+    AiProviderType,
+    AssessmentJob,
+    AssessmentStatus,
+    AssessmentWorkflow,
+    JobStatus,
+    LeadAssessment,
+)
 from app.db.models.odoo import (
     Lead,
     LeadSourceType,
@@ -24,4 +34,12 @@ __all__ = [
     "LeadStatus",
     "OdooIdempotencyRecord",
     "hash_integration_token",
+    "AiProviderConnection",
+    "AiProviderType",
+    "AiProviderStatus",
+    "AssessmentJob",
+    "AssessmentWorkflow",
+    "JobStatus",
+    "LeadAssessment",
+    "AssessmentStatus",
 ]

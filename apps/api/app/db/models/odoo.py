@@ -9,6 +9,7 @@ from sqlalchemy import (
     Enum,
     ForeignKey,
     Index,
+    Integer,
     Numeric,
     String,
     Text,
@@ -152,6 +153,14 @@ class Lead(TimestampMixin, Base):
     sync_status: Mapped[str] = mapped_column(String(32), default="synced", nullable=False)
     last_idempotency_key: Mapped[str | None] = mapped_column(String(255), nullable=True)
     raw_payload_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Cached latest fast assessment summary (Phase 3) for list views
+    latest_score_total: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    latest_temperature: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    latest_assessment_status: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    latest_assessment_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    latest_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     tenant: Mapped[Tenant] = relationship()
     odoo_instance: Mapped[OdooInstance | None] = relationship(back_populates="leads")
