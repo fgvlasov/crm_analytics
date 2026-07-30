@@ -136,6 +136,17 @@ def get_instance(
     return OdooInstanceOut.model_validate(instance)
 
 
+@router.delete("/instances/{instance_id}", status_code=204)
+def delete_instance(
+    instance_id: UUID,
+    _: None = Depends(_odoo_enabled),
+    user: TenantUser = Depends(require_roles(TenantUserRole.admin)),
+    service: OdooService = Depends(get_odoo_service),
+) -> None:
+    """Remove an Odoo integration for the caller's tenant only."""
+    service.delete_for_tenant(user.tenant_id, instance_id)
+
+
 @router.post("/leads/upsert", response_model=OdooLeadUpsertResponse)
 async def upsert_lead(
     request: Request,

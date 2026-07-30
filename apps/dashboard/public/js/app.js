@@ -183,8 +183,28 @@
           <strong>${esc(inst.name)}</strong>
           <div class="muted">${esc(inst.base_url)}</div>
           <div class="muted">${esc(inst.company_name || "")}</div>
-          <div class="muted">Last sync: ${esc(inst.last_sync_at || "never")}</div>`;
+          <div class="muted">Last sync: ${esc(inst.last_sync_at || "never")}</div>
+          <div class="card-actions">
+            <button type="button" class="btn danger btn-sm" data-delete-odoo="${esc(inst.id)}">Delete</button>
+          </div>`;
         list.appendChild(card);
+      });
+      list.querySelectorAll("[data-delete-odoo]").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          const id = btn.getAttribute("data-delete-odoo");
+          const name = btn.closest("article")?.querySelector("strong")?.textContent || "this integration";
+          if (!confirm(`Delete Odoo integration "${name}"? Leads stay in LeadIntel; sync with this instance stops.`)) {
+            return;
+          }
+          btn.disabled = true;
+          try {
+            await LeadIntelApi.deleteOdoo(id);
+            await loadOdoo();
+          } catch (err) {
+            alert(err.message || "Delete failed");
+            btn.disabled = false;
+          }
+        });
       });
     } catch (err) {
       show(empty, true);
