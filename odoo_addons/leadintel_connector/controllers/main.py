@@ -1,9 +1,15 @@
 # -*- coding: utf-8 -*-
+"""HTTP webhook endpoints for LeadIntel SaaS → Odoo callbacks.
+
+Uses type=http (not type=json) so external plain JSON POSTs work.
+Odoo type=json routes expect a JSON-RPC envelope and often return 404 to plain JSON.
+"""
+
 import json
 import logging
 
 from odoo import fields, http
-from odoo.http import request
+from odoo.http import request, Response
 
 from odoo.addons.leadintel_connector.services.signature import verify_signature
 
@@ -13,22 +19,24 @@ _logger = logging.getLogger(__name__)
 class LeadIntelWebhookController(http.Controller):
     @http.route(
         "/leadintel/webhook/assessment-result",
-        type="json",
+        type="http",
         auth="public",
         methods=["POST"],
         csrf=False,
+        save_session=False,
     )
     def assessment_result(self, **kwargs):
         """Receive assessment callbacks from SaaS. Idempotent by event_id."""
-        # Odoo type=json puts payload in kwargs / request.jsonrequest
-        payload = request.jsonrequest if hasattr(request, "jsonrequest") else kwargs
-        if not isinstance(payload, dict):
-            payload = {}
+        raw_body = request.httprequest.get_data() or b"{}"
+        try:
+            payload = json.loads(raw_body.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            return self._json_response({"status": "error", "message": "invalid json"}, status=400)
 
-        # Prefer raw body for HMAC when available
-        raw = getattr(request, "httprequest", None)
-        raw_body = raw.get_data() if raw is not None else json.dumps(payload).encode("utf-8")
-        headers = raw.headers if raw is not None else {}
+        if not isinstance(payload, dict):
+            return self._json_response({"status": "error", "message": "payload must be object"}, status=400)
+
+        headers = request.httprequest.headers
         signature = headers.get("X-LeadIntel-Signature", "")
         timestamp = headers.get("X-LeadIntel-Timestamp", "")
         secret = (
@@ -43,16 +51,20 @@ class LeadIntelWebhookController(http.Controller):
             signature,
             secret,
         ):
-            return {"status": "error", "message": "invalid signature"}
+            return self._json_response(
+                {"status": "error", "message": "invalid signature"}, status=401
+            )
 
         event_id = payload.get("event_id") or ""
         if not event_id:
-            return {"status": "error", "message": "event_id required"}
+            return self._json_response(
+                {"status": "error", "message": "event_id required"}, status=400
+            )
 
         Log = request.env["leadintel.webhook.log"].sudo()
         existing = Log.search([("event_id", "=", event_id)], limit=1)
         if existing:
-            return {"status": "duplicate"}
+            return self._json_response({"status": "duplicate"})
 
         try:
             odoo_res_id = int(payload.get("odoo_res_id") or 0)
@@ -68,6 +80,8 @@ class LeadIntelWebhookController(http.Controller):
                     vals["leadintel_temperature"] = payload["temperature"]
                 if payload.get("summary"):
                     vals["leadintel_summary"] = payload["summary"]
+                if payload.get("recommended_action"):
+                    vals["leadintel_recommended_action"] = payload["recommended_action"]
                 lead.write(vals)
                 request.env["leadintel.assessment"].sudo().create(
                     {
@@ -78,9 +92,15 @@ class LeadIntelWebhookController(http.Controller):
                         "score_total": payload.get("score_total"),
                         "temperature": payload.get("temperature"),
                         "summary": payload.get("summary"),
+                        "recommended_action": payload.get("recommended_action"),
                         "raw_json": json.dumps(payload),
                     }
                 )
+            else:
+                _logger.warning(
+                    "LeadIntel webhook: crm.lead id=%s not found", odoo_res_id
+                )
+
             Log.create(
                 {
                     "event_id": event_id,
@@ -89,7 +109,7 @@ class LeadIntelWebhookController(http.Controller):
                     "payload_json": json.dumps(payload),
                 }
             )
-            return {"status": "processed"}
+            return self._json_response({"status": "processed"})
         except Exception as exc:  # noqa: BLE001
             _logger.exception("LeadIntel webhook failed")
             Log.create(
@@ -101,4 +121,14 @@ class LeadIntelWebhookController(http.Controller):
                     "error_message": str(exc)[:2000],
                 }
             )
-            return {"status": "error", "message": str(exc)}
+            return self._json_response(
+                {"status": "error", "message": str(exc)}, status=500
+            )
+
+    @staticmethod
+    def _json_response(payload, status=200):
+        return Response(
+            json.dumps(payload),
+            status=status,
+            content_type="application/json",
+        )

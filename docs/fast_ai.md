@@ -11,6 +11,21 @@ Enable with `FEATURE_FAST_AI=true`.
 
 Odoo lead upsert also enqueues a fast job automatically when Fast AI is enabled.
 
+## OpenAI integration notes
+
+Fast Assessment uses the **Chat Completions** API (`POST /v1/chat/completions` with `response_format: json_object`).
+
+It does **not** use the [Agents SDK quickstart](https://developers.openai.com/api/docs/guides/agents/quickstart) — that product is for multi-agent tool workflows, not our structured scoring path.
+
+**Provider Test** calls `GET /v1/models` to verify the API key without spending completion tokens.
+
+If you see **HTTP 429 Too Many Requests** during scoring:
+
+1. Open [OpenAI usage / billing](https://platform.openai.com/usage)
+2. Confirm the project has quota/credits and is not hard-limited
+3. Wait for rate-limit windows to reset, or use a different key/project
+4. You can keep using the **mock** provider for end-to-end sync tests without OpenAI
+
 ## Safety
 
 - Strict JSON schema validation
