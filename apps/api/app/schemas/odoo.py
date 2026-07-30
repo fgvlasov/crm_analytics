@@ -127,6 +127,11 @@ class LeadOut(BaseModel):
     team_name: str | None
     status: str
     sync_status: str
+    latest_score_total: int | None = None
+    latest_temperature: str | None = None
+    latest_assessment_status: str | None = None
+    latest_assessment_at: datetime | None = None
+    latest_summary: str | None = None
     created_at: datetime
     updated_at: datetime
 

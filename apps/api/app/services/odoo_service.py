@@ -261,11 +261,21 @@ class OdooService:
         self.db.commit()
         self.db.refresh(lead)
 
-        # Phase 2: no AI queue yet (FEATURE_FAST_AI off). Placeholder list for Phase 3.
+        queued_jobs: list[str] = []
+        if self.settings.feature_fast_ai:
+            from app.services.assessment_service import AssessmentService
+
+            job = AssessmentService(self.db, self.settings).queue_fast(
+                tenant_id=instance.tenant_id,
+                lead_id=lead.id,
+                force=False,
+            )
+            queued_jobs.append(str(job.id))
+
         response = {
             "lead_id": str(lead.id),
             "status": "accepted",
-            "queued_jobs": [],
+            "queued_jobs": queued_jobs,
             "created": created,
         }
         self._idempotent_save(instance.tenant_id, "lead_upsert", body.idempotency_key, response)

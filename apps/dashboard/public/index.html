@@ -58,6 +58,7 @@
           <nav class="nav">
             <button type="button" class="nav-item active" data-route="overview">Overview</button>
             <button type="button" class="nav-item" data-route="leads">Leads</button>
+            <button type="button" class="nav-item" data-route="providers">AI Providers</button>
             <button type="button" class="nav-item" data-route="odoo">Odoo integrations</button>
             <button type="button" class="nav-item" data-route="features">Features</button>
           </nav>
@@ -86,8 +87,8 @@
             <div class="panel">
               <h2>Pipeline focus</h2>
               <p class="muted">
-                Phase 2: Odoo sync is live. Fast AI scoring and tender collectors unlock in later
-                phases via feature flags.
+                Phase 3: Fast AI scoring is available when FEATURE_FAST_AI is enabled.
+                Odoo sync queues a fast assessment after each lead upsert.
               </p>
               <ul id="feature-hints" class="hint-list"></ul>
             </div>
@@ -102,13 +103,13 @@
               <table class="data-table">
                 <thead>
                   <tr>
+                    <th>Score</th>
+                    <th>Temp</th>
                     <th>Name</th>
                     <th>Company</th>
-                    <th>Email</th>
                     <th>Stage</th>
-                    <th>Source</th>
-                    <th>Sync</th>
-                    <th>Updated</th>
+                    <th>AI status</th>
+                    <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody id="leads-body">
@@ -117,9 +118,44 @@
               </table>
             </div>
             <aside id="lead-detail" class="panel detail hidden">
-              <h2 id="lead-detail-title">Lead</h2>
+              <div class="toolbar">
+                <h2 id="lead-detail-title" style="margin:0;flex:1">Lead</h2>
+                <button type="button" id="btn-queue-fast" class="btn primary">Queue Fast AI</button>
+                <button type="button" id="btn-run-latest-job" class="btn">Run job now</button>
+              </div>
               <pre id="lead-detail-body" class="code-block"></pre>
+              <pre id="lead-assessment-body" class="code-block"></pre>
             </aside>
+          </div>
+
+          <div id="page-providers" class="page hidden">
+            <div class="split">
+              <div class="panel">
+                <h2>AI providers</h2>
+                <p class="muted">BYOK keys are encrypted and never shown after save. Mock works without a key.</p>
+                <div id="providers-list" class="stack"></div>
+              </div>
+              <div class="panel">
+                <h2>Add provider</h2>
+                <form id="provider-form" class="stack">
+                  <label>Name <input name="name" required value="Mock AI" /></label>
+                  <label>
+                    Type
+                    <select name="provider_type">
+                      <option value="mock">mock</option>
+                      <option value="openai">openai</option>
+                      <option value="openai_compatible">openai_compatible</option>
+                    </select>
+                  </label>
+                  <label>API key <input name="api_key" type="password" placeholder="optional for mock" /></label>
+                  <label>Base URL <input name="base_url" placeholder="https://api.openai.com/v1" /></label>
+                  <label>Model <input name="default_model" value="gpt-4o-mini" /></label>
+                  <label><input name="is_default" type="checkbox" checked /> Default provider</label>
+                  <button type="submit" class="btn primary">Save provider</button>
+                </form>
+                <p id="provider-error" class="error" hidden></p>
+              </div>
+            </div>
           </div>
 
           <div id="page-odoo" class="page hidden">

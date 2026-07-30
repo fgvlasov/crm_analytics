@@ -1,0 +1,43 @@
+# Deploy LeadIntel to VPS on every push to main (after PR merge).
+#
+# Required GitHub repository secrets:
+#   DEPLOY_HOST       — e.g. 5.45.119.172 or leadintel.teodoo.com
+#   DEPLOY_USER       — SSH user (e.g. root or deploy)
+#   DEPLOY_SSH_KEY    — private key (PEM) with access to the VPS
+#   DEPLOY_PATH       — absolute path to the repo on the VPS (e.g. /opt/leadintel)
+# Optional:
+#   DEPLOY_PORT       — SSH port (default 22)
+#
+# On the VPS once:
+#   git clone <repo> /opt/leadintel
+#   cp .env.example infra/.env   # edit secrets + FEATURE_* + APP_BASE_URL
+#   chmod +x scripts/deploy.sh
+
+name: Deploy production
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-main
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: ${{ secrets.DEPLOY_PORT || 22 }}
+          script_stop: true
+          script: |
+            set -euo pipefail
+            cd "${{ secrets.DEPLOY_PATH }}"
+            chmod +x scripts/deploy.sh
+            ./scripts/deploy.sh

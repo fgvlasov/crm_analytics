@@ -58,5 +58,17 @@ const LeadIntelApi = (() => {
     odooInstances: () => request("/api/v1/odoo/instances"),
     createOdoo: (payload) =>
       request("/api/v1/odoo/instances", { method: "POST", body: payload }),
+    providers: () => request("/api/v1/providers"),
+    createProvider: (payload) =>
+      request("/api/v1/providers", { method: "POST", body: payload }),
+    testProvider: (id) => request(`/api/v1/providers/${id}/test`, { method: "POST", body: {} }),
+    queueFast: (leadId, force = false) =>
+      request(`/api/v1/leads/${leadId}/assessments/queue`, {
+        method: "POST",
+        body: { assessment_mode: "fast", force },
+      }),
+    latestAssessment: (leadId) =>
+      request(`/api/v1/leads/${leadId}/assessments/latest`),
+    runJob: (jobId) => request(`/api/v1/jobs/${jobId}/run`, { method: "POST", body: {} }),
   };
 })();
