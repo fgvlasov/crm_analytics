@@ -1,4 +1,9 @@
-"""AI provider clients: mock (default for tests) and OpenAI-compatible HTTP."""
+"""AI provider clients: mock (default for tests) and OpenAI-compatible HTTP.
+
+Phase 3 Fast Assessment uses the Chat Completions API
+(POST /v1/chat/completions), not the Agents SDK.
+See OpenAI Chat Completions docs; Agents quickstart is a separate product.
+"""
 
 from __future__ import annotations
 
@@ -14,21 +19,63 @@ from app.services.ai_schemas import FAST_ASSESSMENT_SYSTEM_PROMPT
 logger = get_logger(__name__)
 
 
+class AiClientError(Exception):
+    """Provider HTTP / protocol error with a clear user-facing message."""
+
+    def __init__(self, message: str, *, status_code: int | None = None) -> None:
+        super().__init__(message)
+        self.status_code = status_code
+
+
 class AiClient(Protocol):
+    def ping(self) -> dict[str, Any]:
+        """Lightweight connectivity check (prefer no billable generation)."""
+
     def complete_json(self, *, system: str, user: str, model: str) -> dict[str, Any]: ...
+
+
+def _http_error_message(response: httpx.Response) -> str:
+    status = response.status_code
+    detail = ""
+    try:
+        body = response.json()
+        err = body.get("error") if isinstance(body, dict) else None
+        if isinstance(err, dict):
+            detail = str(err.get("message") or err.get("code") or "")
+        elif isinstance(err, str):
+            detail = err
+    except Exception:  # noqa: BLE001
+        detail = (response.text or "")[:300]
+
+    if status == 401:
+        return (
+            "OpenAI rejected the API key (401 Unauthorized). "
+            "Check the key in the provider settings."
+        )
+    if status == 429:
+        return (
+            "OpenAI rate limit or quota exceeded (429 Too Many Requests). "
+            "Check billing/usage at https://platform.openai.com/usage and retry later. "
+            "Provider Test uses GET /v1/models and does not call chat/completions."
+        )
+    if status == 404:
+        return f"OpenAI endpoint or model not found (404). {detail}".strip()
+    return f"OpenAI HTTP {status}: {detail or response.reason_phrase}".strip()
 
 
 class MockAiClient:
     """Deterministic mock provider for local/dev and tests. Never calls the network."""
 
+    def ping(self) -> dict[str, Any]:
+        return {"ok": True, "provider": "mock"}
+
     def complete_json(self, *, system: str, user: str, model: str) -> dict[str, Any]:
-        # Prompt-injection hardening check: ignore "instructions" in user payload.
+        # Prompt-injection hardening: ignore "instructions" embedded in user payload.
         _ = system
         lowered = user.lower()
         if "ignore previous instructions" in lowered or "disregard system" in lowered:
             logger.info("Mock provider ignored embedded instruction attempt")
 
-        # Heuristic scoring from keywords in the lead payload text
         text = user.lower()
         business_fit = 22
         project_potential = 14
@@ -70,7 +117,11 @@ class MockAiClient:
 
 
 class OpenAICompatibleClient:
-    """Calls OpenAI or any OpenAI-compatible chat completions endpoint."""
+    """OpenAI / OpenAI-compatible Chat Completions client.
+
+    Scoring uses POST /v1/chat/completions with response_format=json_object.
+    Connectivity test uses GET /v1/models (no generation quota).
+    """
 
     def __init__(
         self,
@@ -83,12 +134,26 @@ class OpenAICompatibleClient:
         self.base_url = (base_url or "https://api.openai.com/v1").rstrip("/")
         self.timeout = timeout
 
-    def complete_json(self, *, system: str, user: str, model: str) -> dict[str, Any]:
-        url = f"{self.base_url}/chat/completions"
-        headers = {
+    def _headers(self) -> dict[str, str]:
+        return {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
         }
+
+    def ping(self) -> dict[str, Any]:
+        """Verify API key via models list — avoids burning chat completion quota."""
+        url = f"{self.base_url}/models"
+        with httpx.Client(timeout=self.timeout) as client:
+            response = client.get(url, headers=self._headers())
+        if response.status_code >= 400:
+            raise AiClientError(_http_error_message(response), status_code=response.status_code)
+        data = response.json()
+        models = data.get("data") if isinstance(data, dict) else None
+        count = len(models) if isinstance(models, list) else 0
+        return {"ok": True, "models_visible": count}
+
+    def complete_json(self, *, system: str, user: str, model: str) -> dict[str, Any]:
+        url = f"{self.base_url}/chat/completions"
         body = {
             "model": model,
             "temperature": 0.2,
@@ -99,9 +164,10 @@ class OpenAICompatibleClient:
             ],
         }
         with httpx.Client(timeout=self.timeout) as client:
-            response = client.post(url, headers=headers, json=body)
-            response.raise_for_status()
-            data = response.json()
+            response = client.post(url, headers=self._headers(), json=body)
+        if response.status_code >= 400:
+            raise AiClientError(_http_error_message(response), status_code=response.status_code)
+        data = response.json()
         content = data["choices"][0]["message"]["content"]
         return _parse_json_content(content)
 

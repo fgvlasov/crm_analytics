@@ -128,18 +128,13 @@ class AiProviderService:
                 api_key=self.reveal_api_key(provider),
                 base_url=provider.base_url,
             )
-            result = client.complete_json(
-                system="Return valid JSON for a smoke test.",
-                user='{"name":"test lead","description":"freezer warehouse inquiry"}',
-                model=provider.default_model,
-            )
-            if not isinstance(result, dict):
-                raise ValueError("Provider did not return JSON object")
+            # Prefer lightweight ping (GET /v1/models) over chat/completions to avoid 429 quota burns.
+            ping = client.ping()
             provider.last_test_at = datetime.now(UTC)
             provider.last_error = None
             provider.status = AiProviderStatus.active
             self.db.commit()
-            return {"ok": True, "sample_keys": list(result.keys())[:8]}
+            return {"ok": True, "ping": ping}
         except Exception as exc:  # noqa: BLE001 — surface provider test errors to API
             provider.last_error = str(exc)[:2000]
             provider.status = AiProviderStatus.error
