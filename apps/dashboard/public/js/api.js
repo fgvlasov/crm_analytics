@@ -58,6 +58,8 @@ const LeadIntelApi = (() => {
     odooInstances: () => request("/api/v1/odoo/instances"),
     createOdoo: (payload) =>
       request("/api/v1/odoo/instances", { method: "POST", body: payload }),
+    deleteOdoo: (id) =>
+      request(`/api/v1/odoo/instances/${id}`, { method: "DELETE" }),
     providers: () => request("/api/v1/providers"),
     createProvider: (payload) =>
       request("/api/v1/providers", { method: "POST", body: payload }),

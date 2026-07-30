@@ -126,6 +126,102 @@ def test_dashboard_create_instance_shows_token_once(client, demo_tenant, monkeyp
     assert "api_token_hash" not in body["instance"]
 
 
+def test_delete_instance_for_own_tenant_only(client, demo_tenant, other_tenant, monkeypatch):
+    _enable_odoo(monkeypatch)
+    demo_token = _login(client)
+    other_token = _login(
+        client, "owner@other.example", "OtherPass123!", "other-co"
+    )
+
+    demo_create = client.post(
+        "/api/v1/odoo/instances",
+        headers={"Authorization": f"Bearer {demo_token}"},
+        json={"name": "Demo CRM", "base_url": "https://demo.example.com"},
+    )
+    assert demo_create.status_code == 201
+    demo_id = demo_create.json()["instance"]["id"]
+
+    other_create = client.post(
+        "/api/v1/odoo/instances",
+        headers={"Authorization": f"Bearer {other_token}"},
+        json={"name": "Other CRM", "base_url": "https://other.example.com"},
+    )
+    assert other_create.status_code == 201
+    other_id = other_create.json()["instance"]["id"]
+
+    # Other tenant cannot delete demo's integration (scoped 404, not leak)
+    forbidden = client.delete(
+        f"/api/v1/odoo/instances/{demo_id}",
+        headers={"Authorization": f"Bearer {other_token}"},
+    )
+    assert forbidden.status_code == 404
+
+    listed_other = client.get(
+        "/api/v1/odoo/instances",
+        headers={"Authorization": f"Bearer {other_token}"},
+    )
+    assert listed_other.status_code == 200
+    assert {i["id"] for i in listed_other.json()} == {other_id}
+
+    deleted = client.delete(
+        f"/api/v1/odoo/instances/{demo_id}",
+        headers={"Authorization": f"Bearer {demo_token}"},
+    )
+    assert deleted.status_code == 204
+
+    listed_demo = client.get(
+        "/api/v1/odoo/instances",
+        headers={"Authorization": f"Bearer {demo_token}"},
+    )
+    assert listed_demo.status_code == 200
+    assert listed_demo.json() == []
+
+    # Other tenant's integration untouched
+    still = client.get(
+        "/api/v1/odoo/instances",
+        headers={"Authorization": f"Bearer {other_token}"},
+    )
+    assert {i["id"] for i in still.json()} == {other_id}
+
+
+def test_register_merges_http_https_duplicate(client, demo_tenant, monkeypatch):
+    _enable_odoo(monkeypatch)
+    first = client.post(
+        "/api/v1/odoo/instances/register",
+        json={
+            "tenant_slug": "coldex-demo",
+            "instance_name": "Coldex Demo",
+            "base_url": "http://stage-hub.coldex.fi",
+            "odoo_version": "19.0",
+            "module_version": "19.0.1.0.0",
+        },
+    )
+    assert first.status_code == 200
+    first_id = first.json()["odoo_instance_id"]
+
+    second = client.post(
+        "/api/v1/odoo/instances/register",
+        json={
+            "tenant_slug": "coldex-demo",
+            "instance_name": "Coldex Demo",
+            "base_url": "https://stage-hub.coldex.fi",
+            "odoo_version": "19.0",
+            "module_version": "19.0.1.0.0",
+        },
+    )
+    assert second.status_code == 200
+    assert second.json()["odoo_instance_id"] == first_id
+
+    access = _login(client)
+    listed = client.get(
+        "/api/v1/odoo/instances", headers={"Authorization": f"Bearer {access}"}
+    )
+    assert listed.status_code == 200
+    items = listed.json()
+    assert len(items) == 1
+    assert items[0]["base_url"] == "https://stage-hub.coldex.fi"
+
+
 def test_require_feature_helper():
     get_settings.cache_clear()
     with pytest.raises(FeatureDisabledError):

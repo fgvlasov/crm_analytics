@@ -172,6 +172,26 @@ input:focus {
   background: transparent;
 }
 
+.btn.danger {
+  border-color: #a35b5b;
+  color: #f0c4c4;
+  background: transparent;
+}
+
+.btn.danger:hover {
+  border-color: #d07070;
+  color: #fff;
+}
+
+.btn.btn-sm {
+  padding: 0.4rem 0.75rem;
+  font-size: 0.85rem;
+}
+
+.card-actions {
+  margin-top: 0.75rem;
+}
+
 .btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;

@@ -51,22 +51,58 @@ class OdooService:
     def _new_token(self) -> str:
         return secrets.token_urlsafe(32)
 
+    @staticmethod
+    def _normalize_base_url(url: str) -> str:
+        """Canonical Odoo base URL for storage and matching (prefer https, no trailing slash)."""
+        cleaned = (url or "").strip().rstrip("/")
+        if cleaned.startswith("http://"):
+            # Prefer https for public hosts to avoid duplicate http/https integrations.
+            host = urlparse(cleaned).hostname or ""
+            if host not in {"localhost", "127.0.0.1"}:
+                cleaned = "https://" + cleaned[len("http://") :]
+        return cleaned.rstrip("/")
+
+    def _find_existing_instance(
+        self, *, tenant_id: UUID, name: str, base_url: str
+    ) -> OdooInstance | None:
+        """Match by exact URL, or same host+name ignoring http/https scheme duplicates."""
+        exact = self.db.scalar(
+            select(OdooInstance).where(
+                OdooInstance.tenant_id == tenant_id,
+                OdooInstance.base_url == base_url,
+                OdooInstance.name == name,
+            )
+        )
+        if exact is not None:
+            return exact
+        host = urlparse(base_url).hostname
+        if not host:
+            return None
+        candidates = self.db.scalars(
+            select(OdooInstance).where(
+                OdooInstance.tenant_id == tenant_id,
+                OdooInstance.name == name,
+            )
+        ).all()
+        for row in candidates:
+            if urlparse(row.base_url).hostname == host:
+                return row
+        return None
+
     def register_from_odoo(self, body: OdooRegisterRequest) -> tuple[OdooInstance, str, str]:
         tenant = self.db.scalar(select(Tenant).where(Tenant.slug == body.tenant_slug))
         if tenant is None:
             raise AppError("Tenant not found", code="tenant_not_found", status_code=404)
 
-        existing = self.db.scalar(
-            select(OdooInstance).where(
-                OdooInstance.tenant_id == tenant.id,
-                OdooInstance.base_url == body.base_url.rstrip("/"),
-                OdooInstance.name == body.instance_name,
-            )
+        base_url = self._normalize_base_url(body.base_url)
+        existing = self._find_existing_instance(
+            tenant_id=tenant.id, name=body.instance_name, base_url=base_url
         )
         token = self._new_token()
         webhook_secret = self._new_token()
         if existing is not None:
             instance = existing
+            instance.base_url = base_url
             instance.odoo_version = body.odoo_version
             instance.database_name = body.database_name
             instance.company_name = body.company_name
@@ -80,7 +116,7 @@ class OdooService:
             instance = OdooInstance(
                 tenant_id=tenant.id,
                 name=body.instance_name,
-                base_url=body.base_url.rstrip("/"),
+                base_url=base_url,
                 odoo_version=body.odoo_version,
                 database_name=body.database_name,
                 company_name=body.company_name,
@@ -104,7 +140,7 @@ class OdooService:
         instance = OdooInstance(
             tenant_id=tenant_id,
             name=body.name,
-            base_url=body.base_url.rstrip("/"),
+            base_url=self._normalize_base_url(body.base_url),
             odoo_version=body.odoo_version,
             database_name=body.database_name,
             company_name=body.company_name,
@@ -134,6 +170,18 @@ class OdooService:
                 OdooInstance.tenant_id == tenant_id,
             )
         )
+
+    def delete_for_tenant(self, tenant_id: UUID, instance_id: UUID) -> None:
+        """Delete an Odoo integration for the current tenant only.
+
+        Linked leads keep their data; odoo_instance_id is set null by FK.
+        Other tenants' integrations are never visible or deletable here.
+        """
+        instance = self.get_for_tenant(tenant_id, instance_id)
+        if instance is None:
+            raise AppError("Odoo instance not found", code="odoo_not_found", status_code=404)
+        self.db.delete(instance)
+        self.db.commit()
 
     def authenticate_instance(
         self,
