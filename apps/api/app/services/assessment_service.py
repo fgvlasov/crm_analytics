@@ -336,13 +336,25 @@ class AssessmentService:
                 score_total=assessment.score_total,
                 temperature=assessment.temperature,
                 summary=assessment.summary,
+                recommended_action=assessment.recommended_action,
+                confidence=assessment.confidence,
+                project_type=assessment.project_type,
+                customer_industry=assessment.customer_industry,
             )
             result = client.push_assessment_result(
                 instance=instance, webhook_secret=secret, payload=payload
             )
-            assessment.odoo_callback_status = (
-                f"ok:{result.get('status_code')}" if result.get("ok") else f"fail:{result}"
-            )
+            if result.get("ok"):
+                assessment.odoo_callback_status = (
+                    f"ok:{result.get('status_code')}:{result.get('body_status')}"
+                )
+            else:
+                detail = result.get("body_status") or result.get("error") or result
+                msg = result.get("body_message")
+                assessment.odoo_callback_status = (
+                    f"fail:{result.get('status_code')}:{detail}"
+                    + (f":{msg}" if msg else "")
+                )[:64]
         except Exception as exc:  # noqa: BLE001
             assessment.odoo_callback_status = f"error:{type(exc).__name__}"
         self.db.commit()

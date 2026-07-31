@@ -153,6 +153,10 @@ class AssessmentCallbackRequest(BaseModel):
     score_total: int | None = None
     temperature: str | None = None
     summary: str | None = None
+    recommended_action: str | None = None
+    confidence: int | None = None
+    project_type: str | None = None
+    customer_industry: str | None = None
 
 
 class DashboardSummaryOut(BaseModel):

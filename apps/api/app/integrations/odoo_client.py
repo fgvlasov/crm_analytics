@@ -16,6 +16,15 @@ from app.db.models.odoo import OdooInstance
 
 logger = get_logger(__name__)
 
+# Odoo Selection: hot|warm|low|cold (SaaS also uses not_relevant)
+_ODOO_TEMPERATURE = {
+    "hot": "hot",
+    "warm": "warm",
+    "low": "low",
+    "cold": "cold",
+    "not_relevant": "cold",
+}
+
 
 class OdooClient:
     def __init__(self, *, connect_timeout: float = 5.0, read_timeout: float = 30.0) -> None:
@@ -35,9 +44,15 @@ class OdooClient:
         webhook_secret: str,
         payload: dict[str, Any],
     ) -> dict[str, Any]:
-        """POST assessment result to Odoo webhook. Failures are logged, not raised to callers by default."""
+        """POST assessment result to Odoo webhook.
+
+        Success requires HTTP 2xx AND JSON body status in {processed, duplicate}.
+        """
         path = "/leadintel/webhook/assessment-result"
         url = f"{instance.base_url.rstrip('/')}{path}"
+        # Multi-DB Odoo needs explicit db so the webhook hits the same database as Connect.
+        if instance.database_name:
+            url = f"{url}?db={instance.database_name}"
         body = json.dumps(payload, default=str).encode("utf-8")
         timestamp = str(int(time.time()))
         signature = self._sign(
@@ -53,12 +68,31 @@ class OdooClient:
         try:
             with httpx.Client(timeout=self.timeout) as client:
                 response = client.post(url, content=body, headers=headers)
+            body_status = None
+            body_message = None
+            try:
+                data = response.json()
+                if isinstance(data, dict):
+                    body_status = data.get("status")
+                    body_message = data.get("message")
+            except ValueError:
+                data = None
+            http_ok = response.is_success
+            # Only treat as success when Odoo confirms processing (or idempotent replay).
+            ok = http_ok and body_status in {"processed", "duplicate"}
             logger.info(
-                "Odoo webhook callback status=%s instance_id=%s",
+                "Odoo webhook callback status=%s body_status=%s instance_id=%s",
                 response.status_code,
+                body_status,
                 instance.id,
             )
-            return {"ok": response.is_success, "status_code": response.status_code}
+            return {
+                "ok": ok,
+                "status_code": response.status_code,
+                "body_status": body_status,
+                "body_message": body_message,
+                "url": url,
+            }
         except httpx.HTTPError as exc:
             logger.info(
                 "Odoo webhook callback failed instance_id=%s error=%s",
@@ -78,7 +112,14 @@ class OdooClient:
         score_total: int | None = None,
         temperature: str | None = None,
         summary: str | None = None,
+        recommended_action: str | None = None,
+        confidence: int | None = None,
+        project_type: str | None = None,
+        customer_industry: str | None = None,
     ) -> dict[str, Any]:
+        mapped_temp = None
+        if temperature:
+            mapped_temp = _ODOO_TEMPERATURE.get(temperature, temperature)
         return {
             "event_id": event_id,
             "lead_id": str(lead_id),
@@ -87,6 +128,10 @@ class OdooClient:
             "assessment_type": assessment_type,
             "status": status,
             "score_total": score_total,
-            "temperature": temperature,
+            "temperature": mapped_temp,
             "summary": summary,
+            "recommended_action": recommended_action,
+            "confidence": confidence,
+            "project_type": project_type,
+            "customer_industry": customer_industry,
         }

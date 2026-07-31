@@ -15,6 +15,15 @@ from odoo.addons.leadintel_connector.services.signature import verify_signature
 
 _logger = logging.getLogger(__name__)
 
+# SaaS may send "not_relevant"; Odoo Selection only has hot/warm/low/cold.
+_TEMPERATURE_MAP = {
+    "hot": "hot",
+    "warm": "warm",
+    "low": "low",
+    "cold": "cold",
+    "not_relevant": "cold",
+}
+
 
 class LeadIntelWebhookController(http.Controller):
     @http.route(
@@ -64,42 +73,70 @@ class LeadIntelWebhookController(http.Controller):
         Log = request.env["leadintel.webhook.log"].sudo()
         existing = Log.search([("event_id", "=", event_id)], limit=1)
         if existing:
-            return self._json_response({"status": "duplicate"})
+            return self._json_response({"status": "duplicate", "event_id": event_id})
 
         try:
             odoo_res_id = int(payload.get("odoo_res_id") or 0)
             lead = request.env["crm.lead"].sudo().browse(odoo_res_id)
-            if lead.exists():
-                vals = {
-                    "leadintel_assessment_status": payload.get("status") or "succeeded",
-                    "leadintel_last_assessment_at": fields.Datetime.now(),
-                }
-                if payload.get("score_total") is not None:
-                    vals["leadintel_score"] = int(payload["score_total"])
-                if payload.get("temperature"):
-                    vals["leadintel_temperature"] = payload["temperature"]
-                if payload.get("summary"):
-                    vals["leadintel_summary"] = payload["summary"]
-                if payload.get("recommended_action"):
-                    vals["leadintel_recommended_action"] = payload["recommended_action"]
-                lead.write(vals)
-                request.env["leadintel.assessment"].sudo().create(
+            if not lead.exists():
+                _logger.warning(
+                    "LeadIntel webhook: crm.lead id=%s not found (db=%s)",
+                    odoo_res_id,
+                    request.env.cr.dbname,
+                )
+                Log.create(
                     {
-                        "lead_id": lead.id,
-                        "leadintel_assessment_id": event_id,
-                        "assessment_type": payload.get("assessment_type") or "fast",
-                        "status": payload.get("status") or "succeeded",
-                        "score_total": payload.get("score_total"),
-                        "temperature": payload.get("temperature"),
-                        "summary": payload.get("summary"),
-                        "recommended_action": payload.get("recommended_action"),
-                        "raw_json": json.dumps(payload),
+                        "event_id": event_id,
+                        "event_type": "assessment-result",
+                        "status": "failed",
+                        "payload_json": json.dumps(payload),
+                        "error_message": f"crm.lead {odoo_res_id} not found",
                     }
                 )
-            else:
-                _logger.warning(
-                    "LeadIntel webhook: crm.lead id=%s not found", odoo_res_id
+                return self._json_response(
+                    {
+                        "status": "error",
+                        "message": f"crm.lead {odoo_res_id} not found",
+                        "odoo_res_id": odoo_res_id,
+                    },
+                    status=404,
                 )
+
+            temperature = self._map_temperature(payload.get("temperature"))
+            vals = {
+                "leadintel_assessment_status": payload.get("status") or "succeeded",
+                "leadintel_last_assessment_at": fields.Datetime.now(),
+                "leadintel_error_message": False,
+            }
+            if payload.get("score_total") is not None:
+                vals["leadintel_score"] = int(payload["score_total"])
+            if temperature:
+                vals["leadintel_temperature"] = temperature
+            if payload.get("summary"):
+                vals["leadintel_summary"] = payload["summary"]
+            if payload.get("recommended_action"):
+                vals["leadintel_recommended_action"] = payload["recommended_action"]
+            if payload.get("confidence") is not None:
+                vals["leadintel_confidence"] = int(payload["confidence"])
+            if payload.get("project_type"):
+                vals["leadintel_project_type"] = payload["project_type"]
+            if payload.get("customer_industry"):
+                vals["leadintel_customer_industry"] = payload["customer_industry"]
+            lead.write(vals)
+            request.env["leadintel.assessment"].sudo().create(
+                {
+                    "lead_id": lead.id,
+                    "leadintel_assessment_id": event_id,
+                    "assessment_type": payload.get("assessment_type") or "fast",
+                    "status": payload.get("status") or "succeeded",
+                    "score_total": payload.get("score_total"),
+                    "temperature": temperature,
+                    "confidence": payload.get("confidence"),
+                    "summary": payload.get("summary"),
+                    "recommended_action": payload.get("recommended_action"),
+                    "raw_json": json.dumps(payload),
+                }
+            )
 
             Log.create(
                 {
@@ -109,7 +146,9 @@ class LeadIntelWebhookController(http.Controller):
                     "payload_json": json.dumps(payload),
                 }
             )
-            return self._json_response({"status": "processed"})
+            return self._json_response(
+                {"status": "processed", "odoo_res_id": lead.id, "lead_name": lead.name}
+            )
         except Exception as exc:  # noqa: BLE001
             _logger.exception("LeadIntel webhook failed")
             Log.create(
@@ -124,6 +163,12 @@ class LeadIntelWebhookController(http.Controller):
             return self._json_response(
                 {"status": "error", "message": str(exc)}, status=500
             )
+
+    @staticmethod
+    def _map_temperature(value):
+        if not value:
+            return False
+        return _TEMPERATURE_MAP.get(str(value).strip().lower()) or False
 
     @staticmethod
     def _json_response(payload, status=200):
