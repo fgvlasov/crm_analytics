@@ -193,6 +193,10 @@ def test_assessment_callback(
         score_total=body.score_total,
         temperature=body.temperature,
         summary=body.summary,
+        recommended_action=body.recommended_action,
+        confidence=body.confidence,
+        project_type=body.project_type,
+        customer_industry=body.customer_industry,
     )
     result = client.push_assessment_result(
         instance=instance, webhook_secret=secret, payload=payload

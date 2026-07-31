@@ -226,3 +226,28 @@ def test_require_feature_helper():
     get_settings.cache_clear()
     with pytest.raises(FeatureDisabledError):
         require_feature("odoo_connector")
+
+
+def test_build_assessment_payload_maps_temperature_and_extra_fields():
+    from uuid import uuid4
+
+    from app.integrations.odoo_client import OdooClient
+
+    payload = OdooClient().build_assessment_payload(
+        event_id="evt-1",
+        lead_id=uuid4(),
+        odoo_res_id="42",
+        score_total=82,
+        temperature="not_relevant",
+        summary="Summary",
+        recommended_action="Call",
+        confidence=78,
+        project_type="cold_storage",
+        customer_industry="industrial",
+    )
+    assert payload["temperature"] == "cold"
+    assert payload["recommended_action"] == "Call"
+    assert payload["confidence"] == 78
+    assert payload["project_type"] == "cold_storage"
+    assert payload["customer_industry"] == "industrial"
+    assert payload["odoo_res_id"] == "42"
