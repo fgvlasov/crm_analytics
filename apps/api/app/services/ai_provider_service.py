@@ -84,6 +84,28 @@ class AiProviderService:
             )
         )
 
+    def delete(self, tenant_id: UUID, provider_id: UUID) -> None:
+        provider = self.get_for_tenant(tenant_id, provider_id)
+        if provider is None:
+            raise AppError("Provider not found", code="provider_not_found", status_code=404)
+
+        was_default = provider.is_default
+        self.db.delete(provider)
+        self.db.flush()
+
+        if was_default:
+            replacement = self.db.scalar(
+                select(AiProviderConnection)
+                .where(
+                    AiProviderConnection.tenant_id == tenant_id,
+                    AiProviderConnection.status == AiProviderStatus.active,
+                )
+                .order_by(AiProviderConnection.created_at.desc())
+            )
+            if replacement is not None:
+                replacement.is_default = True
+        self.db.commit()
+
     def get_default(self, tenant_id: UUID) -> AiProviderConnection | None:
         row = self.db.scalar(
             select(AiProviderConnection).where(

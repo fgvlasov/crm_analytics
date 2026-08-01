@@ -64,6 +64,7 @@ const LeadIntelApi = (() => {
     createProvider: (payload) =>
       request("/api/v1/providers", { method: "POST", body: payload }),
     testProvider: (id) => request(`/api/v1/providers/${id}/test`, { method: "POST", body: {} }),
+    deleteProvider: (id) => request(`/api/v1/providers/${id}`, { method: "DELETE" }),
     queueFast: (leadId, force = false) =>
       request(`/api/v1/leads/${leadId}/assessments/queue`, {
         method: "POST",

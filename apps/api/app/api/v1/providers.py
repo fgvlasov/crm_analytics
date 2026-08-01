@@ -76,3 +76,13 @@ def get_provider(
     if row is None:
         raise AppError("Provider not found", code="provider_not_found", status_code=404)
     return ProviderOut.model_validate(row)
+
+
+@router.delete("/{provider_id}", status_code=204)
+def delete_provider(
+    provider_id: UUID,
+    _: None = Depends(_fast_ai_enabled),
+    user: TenantUser = Depends(require_roles(TenantUserRole.admin)),
+    service: AiProviderService = Depends(get_provider_service),
+) -> None:
+    service.delete(user.tenant_id, provider_id)
