@@ -244,6 +244,51 @@ def test_deep_openai_schema_uses_supported_url_constraints():
     assert "format" not in source_url_schema
 
 
+def test_invalid_evidence_urls_are_discarded_without_failing_assessment():
+    payload = {
+        "enhanced_scoring_breakdown": {
+            "business_fit": 20,
+            "project_potential": 10,
+            "customer_quality": 10,
+            "urgency": 10,
+            "technical_completeness": 5,
+            "geography": 5,
+        },
+        "identity_confidence": 80,
+        "commercial_relevance_confidence": 80,
+        "overall_assessment_confidence": 80,
+        "company_profile": "Professional company profile.",
+        "contact_professional_profile": None,
+        "market_signals": [],
+        "internal_relationship_summary": "CRM history was reviewed.",
+        "similar_deal_ids": [],
+        "risks": [],
+        "recommended_action": "Call the customer.",
+        "sources": [
+            {
+                "source_url": "(Provided deal text)",
+                "title": "Internal text",
+                "short_quote": None,
+                "claim_supported": "Internal claim",
+                "confidence": 50,
+            },
+            {
+                "source_url": "https://example.com/company",
+                "title": "Company",
+                "short_quote": None,
+                "claim_supported": "Public company page",
+                "confidence": 80,
+            },
+        ],
+    }
+    result = validate_deep_and_finalize(payload, allowed_similar_deal_ids=set())
+    assert len(result.sources) == 1
+    assert str(result.sources[0].source_url) == "https://example.com/company"
+    assert result.risks == [
+        "Discarded 1 evidence source(s) without a valid public URL."
+    ]
+
+
 def test_evidence_is_tenant_scoped(
     client,
     demo_tenant,
