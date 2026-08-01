@@ -244,6 +244,7 @@ def test_build_assessment_payload_maps_temperature_and_extra_fields():
         confidence=78,
         project_type="cold_storage",
         customer_industry="industrial",
+        result_json={"positive_signals": ["Detailed scope"]},
     )
     assert payload["temperature"] == "cold"
     assert payload["recommended_action"] == "Call"
@@ -251,6 +252,7 @@ def test_build_assessment_payload_maps_temperature_and_extra_fields():
     assert payload["project_type"] == "cold_storage"
     assert payload["customer_industry"] == "industrial"
     assert payload["odoo_res_id"] == "42"
+    assert payload["result_json"] == {"positive_signals": ["Detailed scope"]}
 
 
 def test_odoo_callback_accepts_json_rpc_response(monkeypatch):

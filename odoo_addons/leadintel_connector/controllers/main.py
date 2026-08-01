@@ -126,6 +126,13 @@ class LeadIntelWebhookController(http.Controller):
                 vals["leadintel_project_type"] = payload["project_type"]
             if payload.get("customer_industry"):
                 vals["leadintel_customer_industry"] = payload["customer_industry"]
+
+            result_json = payload.get("result_json")
+            if isinstance(result_json, dict):
+                if payload.get("assessment_type") == "deep":
+                    vals.update(self._deep_result_values(result_json))
+                else:
+                    vals.update(self._fast_result_values(result_json))
             lead.write(vals)
             request.env["leadintel.assessment"].sudo().create(
                 {
@@ -173,6 +180,108 @@ class LeadIntelWebhookController(http.Controller):
         if not value:
             return False
         return _TEMPERATURE_MAP.get(str(value).strip().lower()) or False
+
+    @classmethod
+    def _fast_result_values(cls, result):
+        scoring = result.get("scoring_breakdown") or {}
+        return {
+            "leadintel_fast_business_fit": scoring.get("business_fit") or 0,
+            "leadintel_fast_project_potential": scoring.get("project_potential") or 0,
+            "leadintel_fast_customer_quality": scoring.get("customer_quality") or 0,
+            "leadintel_fast_urgency": scoring.get("urgency") or 0,
+            "leadintel_fast_technical_completeness": (
+                scoring.get("technical_completeness") or 0
+            ),
+            "leadintel_fast_geography": scoring.get("geography") or 0,
+            "leadintel_fast_score": result.get("score_total") or 0,
+            "leadintel_fast_temperature": cls._map_temperature(result.get("temperature")),
+            "leadintel_fast_confidence": result.get("confidence") or 0,
+            "leadintel_fast_relevant": bool(result.get("relevant_to_customer")),
+            "leadintel_fast_project_type": result.get("project_type") or False,
+            "leadintel_fast_customer_industry": result.get("customer_industry") or False,
+            "leadintel_fast_summary": result.get("summary") or False,
+            "leadintel_fast_positive_signals": cls._format_items(
+                result.get("positive_signals")
+            ),
+            "leadintel_fast_risks": cls._format_items(result.get("risks")),
+            "leadintel_fast_missing_information": cls._format_items(
+                result.get("missing_information")
+            ),
+            "leadintel_fast_recommended_action": (
+                result.get("recommended_action") or False
+            ),
+            "leadintel_fast_deep_recommended": bool(
+                result.get("deep_research_recommended")
+            ),
+        }
+
+    @classmethod
+    def _deep_result_values(cls, result):
+        scoring = result.get("enhanced_scoring_breakdown") or {}
+        return {
+            "leadintel_deep_business_fit": scoring.get("business_fit") or 0,
+            "leadintel_deep_project_potential": scoring.get("project_potential") or 0,
+            "leadintel_deep_customer_quality": scoring.get("customer_quality") or 0,
+            "leadintel_deep_urgency": scoring.get("urgency") or 0,
+            "leadintel_deep_technical_completeness": (
+                scoring.get("technical_completeness") or 0
+            ),
+            "leadintel_deep_geography": scoring.get("geography") or 0,
+            "leadintel_deep_score": result.get("score_total") or 0,
+            "leadintel_deep_temperature": cls._map_temperature(result.get("temperature")),
+            "leadintel_deep_identity_confidence": (
+                result.get("identity_confidence") or 0
+            ),
+            "leadintel_deep_commercial_confidence": (
+                result.get("commercial_relevance_confidence") or 0
+            ),
+            "leadintel_deep_overall_confidence": (
+                result.get("overall_assessment_confidence") or 0
+            ),
+            "leadintel_deep_company_profile": result.get("company_profile") or False,
+            "leadintel_deep_contact_profile": (
+                result.get("contact_professional_profile") or False
+            ),
+            "leadintel_deep_market_signals": cls._format_items(
+                result.get("market_signals")
+            ),
+            "leadintel_deep_internal_relationship": (
+                result.get("internal_relationship_summary") or False
+            ),
+            "leadintel_deep_similar_deal_ids": cls._format_items(
+                result.get("similar_deal_ids")
+            ),
+            "leadintel_deep_risks": cls._format_items(result.get("risks")),
+            "leadintel_deep_recommended_action": (
+                result.get("recommended_action") or False
+            ),
+            "leadintel_deep_sources": cls._format_sources(result.get("sources")),
+        }
+
+    @staticmethod
+    def _format_items(items):
+        if not isinstance(items, list):
+            return False
+        values = [str(item).strip() for item in items if str(item).strip()]
+        return "\n".join(f"• {item}" for item in values) or False
+
+    @staticmethod
+    def _format_sources(sources):
+        if not isinstance(sources, list):
+            return False
+        lines = []
+        for source in sources:
+            if not isinstance(source, dict):
+                continue
+            title = source.get("title") or source.get("source_url") or "Source"
+            url = source.get("source_url") or ""
+            claim = source.get("claim_supported") or ""
+            confidence = source.get("confidence")
+            header = f"• {title}"
+            if confidence is not None:
+                header += f" ({confidence}%)"
+            lines.append("\n".join(part for part in (header, url, claim) if part))
+        return "\n\n".join(lines) or False
 
     @staticmethod
     def _json_response(payload, status=200):

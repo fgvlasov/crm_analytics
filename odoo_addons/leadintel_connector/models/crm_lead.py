@@ -40,6 +40,100 @@ class CrmLead(models.Model):
     leadintel_customer_industry = fields.Char(copy=False)
     leadintel_summary = fields.Text(copy=False)
     leadintel_recommended_action = fields.Text(copy=False)
+
+    # Latest Fast Assessment structured result
+    leadintel_fast_business_fit = fields.Integer(string="Business Fit", copy=False, readonly=True)
+    leadintel_fast_project_potential = fields.Integer(
+        string="Project Potential", copy=False, readonly=True
+    )
+    leadintel_fast_customer_quality = fields.Integer(
+        string="Customer Quality", copy=False, readonly=True
+    )
+    leadintel_fast_urgency = fields.Integer(string="Urgency", copy=False, readonly=True)
+    leadintel_fast_technical_completeness = fields.Integer(
+        string="Technical Completeness", copy=False, readonly=True
+    )
+    leadintel_fast_geography = fields.Integer(string="Geography", copy=False, readonly=True)
+    leadintel_fast_score = fields.Integer(string="Total Score", copy=False, readonly=True)
+    leadintel_fast_temperature = fields.Selection(
+        [("hot", "Hot"), ("warm", "Warm"), ("low", "Low"), ("cold", "Cold")],
+        string="Temperature",
+        copy=False,
+        readonly=True,
+    )
+    leadintel_fast_confidence = fields.Integer(string="Confidence", copy=False, readonly=True)
+    leadintel_fast_relevant = fields.Boolean(
+        string="Relevant to Customer", copy=False, readonly=True
+    )
+    leadintel_fast_project_type = fields.Char(string="Project Type", copy=False, readonly=True)
+    leadintel_fast_customer_industry = fields.Char(
+        string="Customer Industry", copy=False, readonly=True
+    )
+    leadintel_fast_summary = fields.Text(string="Summary", copy=False, readonly=True)
+    leadintel_fast_positive_signals = fields.Text(
+        string="Positive Signals", copy=False, readonly=True
+    )
+    leadintel_fast_risks = fields.Text(string="Risks", copy=False, readonly=True)
+    leadintel_fast_missing_information = fields.Text(
+        string="Missing Information", copy=False, readonly=True
+    )
+    leadintel_fast_recommended_action = fields.Text(
+        string="Recommended Action", copy=False, readonly=True
+    )
+    leadintel_fast_deep_recommended = fields.Boolean(
+        string="Deep Research Recommended", copy=False, readonly=True
+    )
+
+    # Latest Deep Research structured result
+    leadintel_deep_business_fit = fields.Integer(string="Business Fit", copy=False, readonly=True)
+    leadintel_deep_project_potential = fields.Integer(
+        string="Project Potential", copy=False, readonly=True
+    )
+    leadintel_deep_customer_quality = fields.Integer(
+        string="Customer Quality", copy=False, readonly=True
+    )
+    leadintel_deep_urgency = fields.Integer(string="Urgency", copy=False, readonly=True)
+    leadintel_deep_technical_completeness = fields.Integer(
+        string="Technical Completeness", copy=False, readonly=True
+    )
+    leadintel_deep_geography = fields.Integer(string="Geography", copy=False, readonly=True)
+    leadintel_deep_score = fields.Integer(string="Enhanced Score", copy=False, readonly=True)
+    leadintel_deep_temperature = fields.Selection(
+        [("hot", "Hot"), ("warm", "Warm"), ("low", "Low"), ("cold", "Cold")],
+        string="Temperature",
+        copy=False,
+        readonly=True,
+    )
+    leadintel_deep_identity_confidence = fields.Integer(
+        string="Identity Confidence", copy=False, readonly=True
+    )
+    leadintel_deep_commercial_confidence = fields.Integer(
+        string="Commercial Relevance Confidence", copy=False, readonly=True
+    )
+    leadintel_deep_overall_confidence = fields.Integer(
+        string="Overall Assessment Confidence", copy=False, readonly=True
+    )
+    leadintel_deep_company_profile = fields.Text(
+        string="Company Profile", copy=False, readonly=True
+    )
+    leadintel_deep_contact_profile = fields.Text(
+        string="Contact Professional Profile", copy=False, readonly=True
+    )
+    leadintel_deep_market_signals = fields.Text(
+        string="Market Signals", copy=False, readonly=True
+    )
+    leadintel_deep_internal_relationship = fields.Text(
+        string="Internal Relationship Summary", copy=False, readonly=True
+    )
+    leadintel_deep_similar_deal_ids = fields.Text(
+        string="Similar Deal IDs", copy=False, readonly=True
+    )
+    leadintel_deep_risks = fields.Text(string="Risks", copy=False, readonly=True)
+    leadintel_deep_recommended_action = fields.Text(
+        string="Recommended Action", copy=False, readonly=True
+    )
+    leadintel_deep_sources = fields.Text(string="Sources", copy=False, readonly=True)
+
     leadintel_dashboard_url = fields.Char(copy=False)
     leadintel_error_message = fields.Text(copy=False)
     leadintel_assessment_ids = fields.One2many(
@@ -104,7 +198,9 @@ class CrmLead(models.Model):
         }
         if tracked.intersection(vals.keys()):
             # Never block write with HTTP — cron will sync.
-            to_mark = self.filtered(lambda l: l.leadintel_sync_status != "pending_sync")
+            to_mark = self.filtered(
+                lambda lead: lead.leadintel_sync_status != "pending_sync"
+            )
             if to_mark:
                 super(CrmLead, to_mark).write({"leadintel_sync_status": "pending_sync"})
         return res

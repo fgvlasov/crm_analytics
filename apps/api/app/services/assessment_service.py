@@ -793,6 +793,17 @@ class AssessmentService:
         try:
             secret = odoo.get_webhook_secret(instance)
             client = OdooClient()
+            structured_result: dict[str, Any] = {}
+            if assessment.result_json:
+                try:
+                    decoded_result = json.loads(assessment.result_json)
+                    if isinstance(decoded_result, dict):
+                        structured_result = decoded_result
+                except json.JSONDecodeError:
+                    logger.warning(
+                        "Assessment result JSON could not be decoded assessment_id=%s",
+                        assessment.id,
+                    )
             payload = client.build_assessment_payload(
                 event_id=str(uuid4()),
                 lead_id=lead.id,
@@ -810,6 +821,7 @@ class AssessmentService:
                 confidence=assessment.confidence,
                 project_type=assessment.project_type,
                 customer_industry=assessment.customer_industry,
+                result_json=structured_result,
             )
             result = client.push_assessment_result(
                 instance=instance, webhook_secret=secret, payload=payload
