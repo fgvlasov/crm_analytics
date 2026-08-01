@@ -1,7 +1,9 @@
+import json
 from datetime import datetime
+from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.db.models.ai import AiProviderType
 
@@ -94,7 +96,21 @@ class AssessmentOut(BaseModel):
     summary: str | None
     recommended_action: str | None
     deep_research_recommended: bool | None
-    result_json: str | None
+    result_json: dict[str, Any] | None
     error_message: str | None
     odoo_callback_status: str | None
     created_at: datetime
+
+    @field_validator("result_json", mode="before")
+    @classmethod
+    def parse_result_json(cls, value: Any) -> dict[str, Any] | None:
+        """Expose persisted structured results as JSON objects, not encoded strings."""
+        if value is None or isinstance(value, dict):
+            return value
+        if isinstance(value, str):
+            try:
+                parsed = json.loads(value)
+            except json.JSONDecodeError:
+                return {"raw": value}
+            return parsed if isinstance(parsed, dict) else {"value": parsed}
+        return {"value": value}

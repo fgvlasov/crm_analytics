@@ -196,13 +196,29 @@
           <div class="flag">${esc(p.provider_type)} · ${esc(p.status)}</div>
           <strong>${esc(p.name)}</strong>
           <div class="muted">${esc(p.default_model)}</div>
-          <button type="button" class="btn" data-test="${esc(p.id)}">Test</button>`;
+          <div class="card-actions">
+            <button type="button" class="btn btn-sm" data-test="${esc(p.id)}">Test</button>
+            <button type="button" class="btn danger btn-sm" data-delete-provider="${esc(p.id)}">Delete</button>
+          </div>`;
         card.querySelector("[data-test]").addEventListener("click", async () => {
           try {
             const res = await LeadIntelApi.testProvider(p.id);
             alert(JSON.stringify(res));
           } catch (err) {
             alert(err.message);
+          }
+        });
+        card.querySelector("[data-delete-provider]").addEventListener("click", async (event) => {
+          if (!confirm(`Delete AI provider "${p.name}"? Existing assessment results remain available.`)) {
+            return;
+          }
+          event.currentTarget.disabled = true;
+          try {
+            await LeadIntelApi.deleteProvider(p.id);
+            await loadProviders();
+          } catch (err) {
+            alert(err.message || "Delete failed");
+            event.currentTarget.disabled = false;
           }
         });
         list.appendChild(card);
@@ -225,6 +241,7 @@
         card.innerHTML = `
           <div class="flag">${esc(inst.status)}</div>
           <strong>${esc(inst.name)}</strong>
+          <div class="muted">Instance ID: <code>${esc(inst.id)}</code></div>
           <div class="muted">${esc(inst.base_url)}</div>
           <div class="muted">${esc(inst.company_name || "")}</div>
           <div class="muted">Last sync: ${esc(inst.last_sync_at || "never")}</div>

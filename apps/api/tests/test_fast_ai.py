@@ -72,7 +72,6 @@ def test_providers_require_feature(client, demo_tenant):
 def test_mock_provider_and_fast_assessment(client, demo_tenant, monkeypatch, db_session):
     _enable_fast_ai(monkeypatch)
     from app.db.models.odoo import Lead, LeadSourceType
-    from app.services.auth_service import TenantService
 
     token = _login(client)
 
@@ -126,6 +125,8 @@ def test_mock_provider_and_fast_assessment(client, demo_tenant, monkeypatch, db_
     assert assessment["score_total"] is not None
     assert assessment["temperature"] in {"hot", "warm", "low", "not_relevant"}
     assert assessment["summary"]
+    assert isinstance(assessment["result_json"], dict)
+    assert assessment["result_json"]["score_total"] == assessment["score_total"]
 
     latest = client.get(
         f"/api/v1/leads/{lead.id}/assessments/latest",
@@ -178,3 +179,35 @@ def test_prompt_injection_does_not_break_mock(client, demo_tenant, monkeypatch, 
     assert run.json()["status"] == "succeeded"
     assert run.json()["score_total"] <= 100
     assert run.json()["score_total"] >= 0
+
+
+def test_admin_can_delete_provider_and_default_is_reassigned(
+    client,
+    demo_tenant,
+    monkeypatch,
+):
+    _enable_fast_ai(monkeypatch)
+    token = _login(client)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    first = client.post(
+        "/api/v1/providers",
+        headers=headers,
+        json={"name": "First Mock", "provider_type": "mock", "is_default": True},
+    )
+    second = client.post(
+        "/api/v1/providers",
+        headers=headers,
+        json={"name": "Second Mock", "provider_type": "mock", "is_default": False},
+    )
+    assert first.status_code == 201
+    assert second.status_code == 201
+
+    deleted = client.delete(f"/api/v1/providers/{first.json()['id']}", headers=headers)
+    assert deleted.status_code == 204
+
+    providers = client.get("/api/v1/providers", headers=headers)
+    assert providers.status_code == 200
+    assert len(providers.json()) == 1
+    assert providers.json()[0]["id"] == second.json()["id"]
+    assert providers.json()[0]["is_default"] is True
