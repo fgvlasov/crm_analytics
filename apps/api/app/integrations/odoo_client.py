@@ -187,6 +187,7 @@ class OdooClient:
         confidence: int | None = None,
         project_type: str | None = None,
         customer_industry: str | None = None,
+        result_json: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         mapped_temp = None
         if temperature:
@@ -205,4 +206,5 @@ class OdooClient:
             "confidence": confidence,
             "project_type": project_type,
             "customer_industry": customer_industry,
+            "result_json": result_json or {},
         }

@@ -19,36 +19,120 @@
           </group>
           <group>
             <group>
-              <field name="leadintel_score"/>
-              <field name="leadintel_temperature"/>
-              <field name="leadintel_confidence"/>
               <field name="leadintel_assessment_status"/>
               <field name="leadintel_sync_status"/>
             </group>
             <group>
-              <field name="leadintel_project_type"/>
-              <field name="leadintel_customer_industry"/>
               <field name="leadintel_last_sync_at"/>
               <field name="leadintel_last_assessment_at"/>
               <field name="leadintel_dashboard_url" widget="url"/>
             </group>
           </group>
-          <group string="Summary">
-            <field name="leadintel_summary" nolabel="1" colspan="2"/>
-          </group>
-          <group string="Recommended Action">
-            <field name="leadintel_recommended_action" nolabel="1" colspan="2"/>
-          </group>
-          <field name="leadintel_error_message" readonly="1"/>
-          <field name="leadintel_assessment_ids">
-            <list>
-              <field name="assessment_type"/>
-              <field name="status"/>
-              <field name="score_total"/>
-              <field name="temperature"/>
-              <field name="received_at"/>
-            </list>
-          </field>
+          <notebook>
+            <page string="Fast Assessment" name="leadintel_fast_assessment">
+              <group>
+                <group string="Result">
+                  <field name="leadintel_fast_score"/>
+                  <field name="leadintel_fast_temperature"/>
+                  <field name="leadintel_fast_confidence"/>
+                  <field name="leadintel_fast_relevant"/>
+                  <field name="leadintel_fast_deep_recommended"/>
+                </group>
+                <group string="Classification">
+                  <field name="leadintel_fast_project_type"/>
+                  <field name="leadintel_fast_customer_industry"/>
+                </group>
+              </group>
+              <group string="Scoring Breakdown" col="6">
+                <field name="leadintel_fast_business_fit"/>
+                <field name="leadintel_fast_project_potential"/>
+                <field name="leadintel_fast_customer_quality"/>
+                <field name="leadintel_fast_urgency"/>
+                <field name="leadintel_fast_technical_completeness"/>
+                <field name="leadintel_fast_geography"/>
+              </group>
+              <group string="Summary">
+                <field name="leadintel_fast_summary" nolabel="1" colspan="2"/>
+              </group>
+              <group>
+                <group string="Positive Signals">
+                  <field name="leadintel_fast_positive_signals" nolabel="1"/>
+                </group>
+                <group string="Risks">
+                  <field name="leadintel_fast_risks" nolabel="1"/>
+                </group>
+              </group>
+              <group string="Missing Information">
+                <field name="leadintel_fast_missing_information" nolabel="1" colspan="2"/>
+              </group>
+              <group string="Recommended Action">
+                <field name="leadintel_fast_recommended_action" nolabel="1" colspan="2"/>
+              </group>
+            </page>
+            <page string="Deep Research" name="leadintel_deep_research">
+              <group>
+                <group string="Result">
+                  <field name="leadintel_deep_score"/>
+                  <field name="leadintel_deep_temperature"/>
+                  <field name="leadintel_deep_identity_confidence"/>
+                  <field name="leadintel_deep_commercial_confidence"/>
+                  <field name="leadintel_deep_overall_confidence"/>
+                </group>
+                <group string="Scoring Breakdown">
+                  <field name="leadintel_deep_business_fit"/>
+                  <field name="leadintel_deep_project_potential"/>
+                  <field name="leadintel_deep_customer_quality"/>
+                  <field name="leadintel_deep_urgency"/>
+                  <field name="leadintel_deep_technical_completeness"/>
+                  <field name="leadintel_deep_geography"/>
+                </group>
+              </group>
+              <group string="Company Profile">
+                <field name="leadintel_deep_company_profile" nolabel="1" colspan="2"/>
+              </group>
+              <group string="Contact Professional Profile">
+                <field name="leadintel_deep_contact_profile" nolabel="1" colspan="2"/>
+              </group>
+              <group>
+                <group string="Market Signals">
+                  <field name="leadintel_deep_market_signals" nolabel="1"/>
+                </group>
+                <group string="Risks">
+                  <field name="leadintel_deep_risks" nolabel="1"/>
+                </group>
+              </group>
+              <group string="Internal Relationship Summary">
+                <field name="leadintel_deep_internal_relationship" nolabel="1" colspan="2"/>
+              </group>
+              <group string="Similar Deals">
+                <field name="leadintel_deep_similar_deal_ids" nolabel="1" colspan="2"/>
+              </group>
+              <group string="Recommended Action">
+                <field name="leadintel_deep_recommended_action" nolabel="1" colspan="2"/>
+              </group>
+              <group string="Sources">
+                <field name="leadintel_deep_sources" nolabel="1" colspan="2"/>
+              </group>
+            </page>
+            <page string="Assessment History" name="leadintel_assessment_history">
+              <field name="leadintel_assessment_ids">
+                <list>
+                  <field name="assessment_type"/>
+                  <field name="status"/>
+                  <field name="score_total"/>
+                  <field name="temperature"/>
+                  <field name="confidence"/>
+                  <field name="received_at"/>
+                </list>
+              </field>
+            </page>
+            <page string="Integration" name="leadintel_integration">
+              <group>
+                <field name="leadintel_external_id"/>
+                <field name="leadintel_error_message"/>
+              </group>
+            </page>
+          </notebook>
         </page>
       </xpath>
     </field>
