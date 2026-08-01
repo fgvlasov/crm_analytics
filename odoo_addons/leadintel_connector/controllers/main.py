@@ -36,14 +36,18 @@ class LeadIntelWebhookController(http.Controller):
     )
     def assessment_result(self, **kwargs):
         """Receive assessment callbacks from SaaS. Idempotent by event_id."""
-        raw_body = request.httprequest.get_data() or b"{}"
+        raw_body = request.httprequest.get_data(cache=True) or b"{}"
         try:
-            payload = json.loads(raw_body.decode("utf-8"))
+            wire_payload = json.loads(raw_body.decode("utf-8"))
         except (UnicodeDecodeError, json.JSONDecodeError):
             return self._json_response({"status": "error", "message": "invalid json"}, status=400)
 
-        if not isinstance(payload, dict):
+        if not isinstance(wire_payload, dict):
             return self._json_response({"status": "error", "message": "payload must be object"}, status=400)
+
+        # Accept both direct JSON and a JSON-RPC envelope used by older Odoo JSON routes.
+        params = wire_payload.get("params")
+        payload = params if isinstance(params, dict) else wire_payload
 
         headers = request.httprequest.headers
         signature = headers.get("X-LeadIntel-Signature", "")

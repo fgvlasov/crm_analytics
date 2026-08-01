@@ -5,18 +5,18 @@
     <field name="model">crm.lead</field>
     <field name="inherit_id" ref="crm.crm_lead_view_form"/>
     <field name="arch" type="xml">
-      <xpath expr="//header" position="inside">
-        <button name="action_leadintel_sync" type="object" string="LeadIntel Sync"
-                class="btn-secondary" groups="leadintel_connector.group_leadintel_user"/>
-        <button name="action_leadintel_fast_assessment" type="object" string="LeadIntel Fast Assessment"
-                class="btn-secondary" groups="leadintel_connector.group_leadintel_manager"/>
-        <button name="action_leadintel_deep_research" type="object" string="LeadIntel Deep Research"
-                class="btn-secondary" groups="leadintel_connector.group_leadintel_manager"/>
-        <button name="action_open_leadintel_dashboard" type="object" string="Open LeadIntel Dashboard"
-                class="btn-link" groups="leadintel_connector.group_leadintel_user"/>
-      </xpath>
       <xpath expr="//notebook" position="inside">
         <page string="LeadIntel AI" name="leadintel_ai" groups="leadintel_connector.group_leadintel_user">
+          <group string="Actions" col="4">
+            <button name="action_leadintel_sync" type="object" string="Sync Lead"
+                    class="btn-secondary" groups="leadintel_connector.group_leadintel_user"/>
+            <button name="action_leadintel_fast_assessment" type="object" string="Queue Fast Assessment"
+                    class="btn-primary" groups="leadintel_connector.group_leadintel_manager"/>
+            <button name="action_leadintel_deep_research" type="object" string="Queue Deep Research"
+                    class="btn-primary" groups="leadintel_connector.group_leadintel_manager"/>
+            <button name="action_open_leadintel_dashboard" type="object" string="Open Dashboard"
+                    class="btn-secondary" groups="leadintel_connector.group_leadintel_user"/>
+          </group>
           <group>
             <group>
               <field name="leadintel_score"/>

@@ -298,3 +298,65 @@ def test_odoo_callback_accepts_json_rpc_response(monkeypatch):
     )
     assert result["ok"] is True
     assert result["body_status"] == "processed"
+
+
+def test_odoo_callback_retries_with_json_rpc_envelope(monkeypatch):
+    import json
+    from types import SimpleNamespace
+    from uuid import uuid4
+
+    from app.integrations.odoo_client import OdooClient
+
+    sent_payloads = []
+
+    class FakeResponse:
+        status_code = 200
+        is_success = True
+
+        def __init__(self, body):
+            self.body = body
+
+        def json(self):
+            return self.body
+
+    class FakeHttpClient:
+        def __init__(self, **kwargs):
+            _ = kwargs
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return None
+
+        def post(self, url, *, content, headers):
+            _ = (url, headers)
+            sent_payloads.append(json.loads(content))
+            if len(sent_payloads) == 1:
+                return FakeResponse({"status": "error", "message": "event_id required"})
+            return FakeResponse(
+                {
+                    "jsonrpc": "2.0",
+                    "result": {"status": "processed", "odoo_res_id": 42},
+                }
+            )
+
+    monkeypatch.setattr("app.integrations.odoo_client.httpx.Client", FakeHttpClient)
+    instance = SimpleNamespace(
+        id=uuid4(),
+        tenant_id=uuid4(),
+        base_url="https://odoo.example.com",
+        database_name="production",
+    )
+    payload = {"event_id": "event-2", "odoo_res_id": "42", "summary": "Summary"}
+    result = OdooClient().push_assessment_result(
+        instance=instance,
+        webhook_secret="secret",
+        payload=payload,
+    )
+
+    assert result["ok"] is True
+    assert len(sent_payloads) == 2
+    assert sent_payloads[0] == payload
+    assert sent_payloads[1]["params"] == payload
+    assert sent_payloads[1]["id"] == "event-2"

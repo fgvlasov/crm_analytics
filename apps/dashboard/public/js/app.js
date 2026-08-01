@@ -33,6 +33,21 @@
     if (route === "features") loadFeatures();
   }
 
+  async function openHashRoute() {
+    const leadMatch = window.location.hash.match(/^#leads\/([0-9a-f-]+)$/i);
+    if (!leadMatch) {
+      setRoute("overview");
+      return;
+    }
+    setRoute("leads");
+    try {
+      const lead = await LeadIntelApi.lead(leadMatch[1]);
+      await showLeadDetail(lead);
+    } catch (err) {
+      alert(err.message || "The linked lead could not be opened.");
+    }
+  }
+
   async function enterApp() {
     show($("#view-login"), false);
     show($("#view-app"), true);
@@ -59,7 +74,7 @@
       enabledFeatures = {};
     }
     show($("#btn-queue-deep"), Boolean(enabledFeatures.deep_research));
-    setRoute("overview");
+    await openHashRoute();
   }
 
   function showLogin() {
@@ -324,6 +339,10 @@
 
   document.querySelectorAll(".nav-item").forEach((btn) => {
     btn.addEventListener("click", () => setRoute(btn.dataset.route));
+  });
+
+  window.addEventListener("hashchange", () => {
+    if (LeadIntelApi.getAuth()?.access_token) openHashRoute();
   });
 
   $("#btn-refresh-leads").addEventListener("click", () =>

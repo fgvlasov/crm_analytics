@@ -37,6 +37,73 @@ class OdooClient:
         payload = f"{method.upper()}\n{path}\n{timestamp}\n{body_hash}"
         return hmac.new(secret.encode("utf-8"), payload.encode("utf-8"), hashlib.sha256).hexdigest()
 
+    def _callback_headers(
+        self,
+        *,
+        instance: OdooInstance,
+        path: str,
+        body: bytes,
+        webhook_secret: str,
+    ) -> dict[str, str]:
+        timestamp = str(int(time.time()))
+        return {
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            "X-LeadIntel-Tenant": str(instance.tenant_id),
+            "X-LeadIntel-Odoo-Instance": str(instance.id),
+            "X-LeadIntel-Timestamp": timestamp,
+            "X-LeadIntel-Signature": self._sign(
+                method="POST",
+                path=path,
+                timestamp=timestamp,
+                body=body,
+                secret=webhook_secret,
+            ),
+        }
+
+    def _post_callback(
+        self,
+        *,
+        client: httpx.Client,
+        url: str,
+        path: str,
+        instance: OdooInstance,
+        webhook_secret: str,
+        wire_payload: dict[str, Any],
+    ) -> dict[str, Any]:
+        body = json.dumps(wire_payload, default=str).encode("utf-8")
+        response = client.post(
+            url,
+            content=body,
+            headers=self._callback_headers(
+                instance=instance,
+                path=path,
+                body=body,
+                webhook_secret=webhook_secret,
+            ),
+        )
+        body_status = None
+        body_message = None
+        try:
+            data = response.json()
+            if isinstance(data, dict):
+                result_data = data.get("result")
+                if isinstance(result_data, dict):
+                    body_status = result_data.get("status")
+                    body_message = result_data.get("message")
+                else:
+                    body_status = data.get("status")
+                    body_message = data.get("message")
+        except ValueError:
+            pass
+        return {
+            "ok": response.is_success and body_status in {"processed", "duplicate"},
+            "status_code": response.status_code,
+            "body_status": body_status,
+            "body_message": body_message,
+            "url": url,
+        }
+
     def push_assessment_result(
         self,
         *,
@@ -53,52 +120,50 @@ class OdooClient:
         # Multi-DB Odoo needs explicit db so the webhook hits the same database as Connect.
         if instance.database_name:
             url = f"{url}?db={instance.database_name}"
-        body = json.dumps(payload, default=str).encode("utf-8")
-        timestamp = str(int(time.time()))
-        signature = self._sign(
-            method="POST", path=path, timestamp=timestamp, body=body, secret=webhook_secret
-        )
-        headers = {
-            "Content-Type": "application/json",
-            "X-LeadIntel-Tenant": str(instance.tenant_id),
-            "X-LeadIntel-Odoo-Instance": str(instance.id),
-            "X-LeadIntel-Timestamp": timestamp,
-            "X-LeadIntel-Signature": signature,
-        }
         try:
             with httpx.Client(timeout=self.timeout) as client:
-                response = client.post(url, content=body, headers=headers)
-            body_status = None
-            body_message = None
-            try:
-                data = response.json()
-                if isinstance(data, dict):
-                    result_data = data.get("result")
-                    if isinstance(result_data, dict):
-                        # Accept a JSON-RPC envelope from older Odoo route deployments.
-                        body_status = result_data.get("status")
-                        body_message = result_data.get("message")
-                    else:
-                        body_status = data.get("status")
-                        body_message = data.get("message")
-            except ValueError:
-                data = None
-            http_ok = response.is_success
-            # Only treat as success when Odoo confirms processing (or idempotent replay).
-            ok = http_ok and body_status in {"processed", "duplicate"}
+                result = self._post_callback(
+                    client=client,
+                    url=url,
+                    path=path,
+                    instance=instance,
+                    webhook_secret=webhook_secret,
+                    wire_payload=payload,
+                )
+                # Older Odoo JSON routes require a JSON-RPC envelope. The event ID makes
+                # this fallback safe when the first request was processed but its response
+                # could not be decoded.
+                needs_jsonrpc_fallback = (
+                    not result["ok"]
+                    and (
+                        result["body_status"] is None
+                        or (
+                            result["body_status"] == "error"
+                            and result["body_message"] == "event_id required"
+                        )
+                    )
+                )
+                if needs_jsonrpc_fallback:
+                    result = self._post_callback(
+                        client=client,
+                        url=url,
+                        path=path,
+                        instance=instance,
+                        webhook_secret=webhook_secret,
+                        wire_payload={
+                            "jsonrpc": "2.0",
+                            "method": "call",
+                            "params": payload,
+                            "id": payload.get("event_id"),
+                        },
+                    )
             logger.info(
                 "Odoo webhook callback status=%s body_status=%s instance_id=%s",
-                response.status_code,
-                body_status,
+                result["status_code"],
+                result["body_status"],
                 instance.id,
             )
-            return {
-                "ok": ok,
-                "status_code": response.status_code,
-                "body_status": body_status,
-                "body_message": body_message,
-                "url": url,
-            }
+            return result
         except httpx.HTTPError as exc:
             logger.info(
                 "Odoo webhook callback failed instance_id=%s error=%s",
