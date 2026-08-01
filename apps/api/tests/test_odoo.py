@@ -251,3 +251,50 @@ def test_build_assessment_payload_maps_temperature_and_extra_fields():
     assert payload["project_type"] == "cold_storage"
     assert payload["customer_industry"] == "industrial"
     assert payload["odoo_res_id"] == "42"
+
+
+def test_odoo_callback_accepts_json_rpc_response(monkeypatch):
+    from types import SimpleNamespace
+    from uuid import uuid4
+
+    from app.integrations.odoo_client import OdooClient
+
+    class FakeResponse:
+        status_code = 200
+        is_success = True
+
+        def json(self):
+            return {
+                "jsonrpc": "2.0",
+                "id": None,
+                "result": {"status": "processed", "odoo_res_id": 42},
+            }
+
+    class FakeHttpClient:
+        def __init__(self, **kwargs):
+            _ = kwargs
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return None
+
+        def post(self, url, *, content, headers):
+            _ = (url, content, headers)
+            return FakeResponse()
+
+    monkeypatch.setattr("app.integrations.odoo_client.httpx.Client", FakeHttpClient)
+    instance = SimpleNamespace(
+        id=uuid4(),
+        tenant_id=uuid4(),
+        base_url="https://odoo.example.com",
+        database_name="production",
+    )
+    result = OdooClient().push_assessment_result(
+        instance=instance,
+        webhook_secret="secret",
+        payload={"event_id": "event-1", "odoo_res_id": "42"},
+    )
+    assert result["ok"] is True
+    assert result["body_status"] == "processed"
