@@ -31,7 +31,14 @@ class AiClient(Protocol):
     def ping(self) -> dict[str, Any]:
         """Lightweight connectivity check (prefer no billable generation)."""
 
-    def complete_json(self, *, system: str, user: str, model: str) -> dict[str, Any]: ...
+    def complete_json(
+        self,
+        *,
+        system: str,
+        user: str,
+        model: str,
+        response_schema: dict[str, Any] | None = None,
+    ) -> dict[str, Any]: ...
 
 
 def _http_error_message(response: httpx.Response) -> str:
@@ -69,8 +76,16 @@ class MockAiClient:
     def ping(self) -> dict[str, Any]:
         return {"ok": True, "provider": "mock"}
 
-    def complete_json(self, *, system: str, user: str, model: str) -> dict[str, Any]:
+    def complete_json(
+        self,
+        *,
+        system: str,
+        user: str,
+        model: str,
+        response_schema: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         # Prompt-injection hardening: ignore "instructions" embedded in user payload.
+        _ = response_schema
         _ = system
         lowered = user.lower()
         if "ignore previous instructions" in lowered or "disregard system" in lowered:
@@ -201,12 +216,29 @@ class OpenAICompatibleClient:
         count = len(models) if isinstance(models, list) else 0
         return {"ok": True, "models_visible": count}
 
-    def complete_json(self, *, system: str, user: str, model: str) -> dict[str, Any]:
+    def complete_json(
+        self,
+        *,
+        system: str,
+        user: str,
+        model: str,
+        response_schema: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         url = f"{self.base_url}/chat/completions"
+        response_format: dict[str, Any] = {"type": "json_object"}
+        if response_schema is not None:
+            response_format = {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "leadintel_assessment",
+                    "strict": True,
+                    "schema": response_schema,
+                },
+            }
         body = {
             "model": model,
             "temperature": 0.2,
-            "response_format": {"type": "json_object"},
+            "response_format": response_format,
             "messages": [
                 {"role": "system", "content": system or FAST_ASSESSMENT_SYSTEM_PROMPT},
                 {"role": "user", "content": user},

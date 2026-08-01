@@ -1,5 +1,7 @@
 """Phase 3 Fast AI tests: schema validation, mock assessment, feature gate, tenant isolation."""
 
+from uuid import UUID
+
 import pytest
 
 from app.core.config import get_settings
@@ -211,3 +213,161 @@ def test_admin_can_delete_provider_and_default_is_reassigned(
     assert len(providers.json()) == 1
     assert providers.json()[0]["id"] == second.json()["id"]
     assert providers.json()[0]["is_default"] is True
+
+
+def test_invalid_provider_json_is_repaired_once(
+    client,
+    demo_tenant,
+    monkeypatch,
+    db_session,
+):
+    _enable_fast_ai(monkeypatch)
+    from app.db.models.odoo import Lead, LeadSourceType
+
+    class RepairingClient:
+        def __init__(self):
+            self.calls = 0
+
+        def complete_json(self, **kwargs):
+            assert kwargs["response_schema"]["required"]
+            self.calls += 1
+            if self.calls == 1:
+                return {"confidence": 0.66}
+            return {
+                "scoring_breakdown": {
+                    "business_fit": 20,
+                    "project_potential": 15,
+                    "customer_quality": 10,
+                    "urgency": 10,
+                    "technical_completeness": 8,
+                    "geography": 10,
+                },
+                "confidence": 80,
+                "relevant_to_customer": True,
+                "project_type": "cold_storage",
+                "customer_industry": "food",
+                "summary": "Validated replacement result.",
+                "positive_signals": [],
+                "risks": [],
+                "missing_information": [],
+                "recommended_action": "Call the customer.",
+                "deep_research_recommended": False,
+            }
+
+    repairing_client = RepairingClient()
+    monkeypatch.setattr(
+        "app.services.assessment_service.build_client",
+        lambda **kwargs: repairing_client,
+    )
+    tenant, _ = demo_tenant
+    lead = Lead(
+        tenant_id=tenant.id,
+        source_type=LeadSourceType.manual,
+        name="Repair schema test",
+        description="Cold storage project.",
+    )
+    db_session.add(lead)
+    db_session.commit()
+    token = _login(client)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    queued = client.post(
+        f"/api/v1/leads/{lead.id}/assessments/queue",
+        headers=headers,
+        json={"assessment_mode": "fast", "force": True},
+    )
+    completed = client.post(
+        f"/api/v1/jobs/{queued.json()['id']}/run",
+        headers=headers,
+        json={},
+    )
+    assert completed.status_code == 200
+    assert completed.json()["status"] == "succeeded"
+    assert completed.json()["summary"] == "Validated replacement result."
+    assert repairing_client.calls == 2
+
+
+def test_failed_job_can_be_queued_again(
+    client,
+    demo_tenant,
+    monkeypatch,
+    db_session,
+):
+    _enable_fast_ai(monkeypatch)
+    from app.db.models.ai import AssessmentJob, JobStatus
+    from app.db.models.odoo import Lead, LeadSourceType
+
+    tenant, _ = demo_tenant
+    lead = Lead(
+        tenant_id=tenant.id,
+        source_type=LeadSourceType.manual,
+        name="Retry failed job",
+    )
+    db_session.add(lead)
+    db_session.commit()
+    token = _login(client)
+    headers = {"Authorization": f"Bearer {token}"}
+    body = {"assessment_mode": "fast", "force": True}
+
+    first = client.post(
+        f"/api/v1/leads/{lead.id}/assessments/queue",
+        headers=headers,
+        json=body,
+    )
+    job = db_session.get(AssessmentJob, UUID(first.json()["id"]))
+    job.status = JobStatus.failed
+    job.error_message = "Temporary provider failure"
+    db_session.commit()
+
+    retry = client.post(
+        f"/api/v1/leads/{lead.id}/assessments/queue",
+        headers=headers,
+        json=body,
+    )
+    assert retry.status_code == 200
+    assert retry.json()["id"] == first.json()["id"]
+    assert retry.json()["status"] == "queued"
+    assert retry.json()["error_message"] is None
+
+
+def test_openai_client_sends_strict_json_schema(monkeypatch):
+    from app.services.ai_clients import OpenAICompatibleClient
+    from app.services.ai_schemas import FAST_ASSESSMENT_RESPONSE_SCHEMA
+
+    captured = {}
+
+    class FakeResponse:
+        status_code = 200
+        reason_phrase = "OK"
+
+        def json(self):
+            return {"choices": [{"message": {"content": '{"ok": true}'}}]}
+
+    class FakeHttpClient:
+        def __init__(self, **kwargs):
+            _ = kwargs
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return None
+
+        def post(self, url, *, headers, json):
+            captured.update(url=url, headers=headers, body=json)
+            return FakeResponse()
+
+    monkeypatch.setattr("app.services.ai_clients.httpx.Client", FakeHttpClient)
+    provider = OpenAICompatibleClient(api_key="test-key")
+    result = provider.complete_json(
+        system="system",
+        user="user",
+        model="test-model",
+        response_schema=FAST_ASSESSMENT_RESPONSE_SCHEMA,
+    )
+
+    assert result == {"ok": True}
+    response_format = captured["body"]["response_format"]
+    assert response_format["type"] == "json_schema"
+    assert response_format["json_schema"]["strict"] is True
+    assert response_format["json_schema"]["schema"] == FAST_ASSESSMENT_RESPONSE_SCHEMA

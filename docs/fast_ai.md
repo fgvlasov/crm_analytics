@@ -13,7 +13,10 @@ Odoo lead upsert also enqueues a fast job automatically when Fast AI is enabled.
 
 ## OpenAI integration notes
 
-Fast Assessment uses the **Chat Completions** API (`POST /v1/chat/completions` with `response_format: json_object`).
+Fast Assessment uses the **Chat Completions** API (`POST /v1/chat/completions`) with
+strict Structured Outputs (`response_format: json_schema`). The complete assessment
+schema is sent to the provider, and one repair attempt is made if a compatible provider
+still returns an invalid object.
 
 It does **not** use the [Agents SDK quickstart](https://developers.openai.com/api/docs/guides/agents/quickstart) — that product is for multi-agent tool workflows, not our structured scoring path.
 
@@ -31,5 +34,6 @@ If you see **HTTP 429 Too Many Requests** during scoring:
 - Strict JSON schema validation
 - Server-side score clamp and temperature
 - Fingerprints skip unchanged inputs unless `force=true`
+- Failed or cancelled jobs can be queued again after transient provider errors
 - API keys encrypted; never returned after save
 - Prompt treats lead text as data, not instructions

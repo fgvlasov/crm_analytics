@@ -18,6 +18,148 @@ SCORE_RANGES = {
     "geography": (0, 10),
 }
 
+_SCORING_BREAKDOWN_JSON_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": list(SCORE_RANGES),
+    "properties": {
+        key: {"type": "integer", "minimum": bounds[0], "maximum": bounds[1]}
+        for key, bounds in SCORE_RANGES.items()
+    },
+}
+
+FAST_ASSESSMENT_RESPONSE_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": [
+        "scoring_breakdown",
+        "confidence",
+        "relevant_to_customer",
+        "project_type",
+        "customer_industry",
+        "summary",
+        "positive_signals",
+        "risks",
+        "missing_information",
+        "recommended_action",
+        "deep_research_recommended",
+    ],
+    "properties": {
+        "scoring_breakdown": _SCORING_BREAKDOWN_JSON_SCHEMA,
+        "confidence": {"type": "integer", "minimum": 0, "maximum": 100},
+        "relevant_to_customer": {"type": "boolean"},
+        "project_type": {"type": "string", "minLength": 1, "maxLength": 128},
+        "customer_industry": {"type": "string", "minLength": 1, "maxLength": 128},
+        "summary": {"type": "string", "minLength": 1, "maxLength": 4000},
+        "positive_signals": {
+            "type": "array",
+            "maxItems": 20,
+            "items": {"type": "string", "maxLength": 500},
+        },
+        "risks": {
+            "type": "array",
+            "maxItems": 20,
+            "items": {"type": "string", "maxLength": 500},
+        },
+        "missing_information": {
+            "type": "array",
+            "maxItems": 20,
+            "items": {"type": "string", "maxLength": 500},
+        },
+        "recommended_action": {"type": "string", "minLength": 1, "maxLength": 2000},
+        "deep_research_recommended": {"type": "boolean"},
+    },
+}
+
+_DEEP_EVIDENCE_JSON_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["source_url", "title", "short_quote", "claim_supported", "confidence"],
+    "properties": {
+        "source_url": {"type": "string", "format": "uri"},
+        "title": {
+            "anyOf": [
+                {"type": "string", "maxLength": 500},
+                {"type": "null"},
+            ]
+        },
+        "short_quote": {
+            "anyOf": [
+                {"type": "string", "maxLength": 500},
+                {"type": "null"},
+            ]
+        },
+        "claim_supported": {"type": "string", "minLength": 1, "maxLength": 1000},
+        "confidence": {"type": "integer", "minimum": 0, "maximum": 100},
+    },
+}
+
+DEEP_RESEARCH_RESPONSE_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": [
+        "enhanced_scoring_breakdown",
+        "identity_confidence",
+        "commercial_relevance_confidence",
+        "overall_assessment_confidence",
+        "company_profile",
+        "contact_professional_profile",
+        "market_signals",
+        "internal_relationship_summary",
+        "similar_deal_ids",
+        "risks",
+        "recommended_action",
+        "sources",
+    ],
+    "properties": {
+        "enhanced_scoring_breakdown": _SCORING_BREAKDOWN_JSON_SCHEMA,
+        "identity_confidence": {"type": "integer", "minimum": 0, "maximum": 100},
+        "commercial_relevance_confidence": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100,
+        },
+        "overall_assessment_confidence": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100,
+        },
+        "company_profile": {"type": "string", "minLength": 1, "maxLength": 4000},
+        "contact_professional_profile": {
+            "anyOf": [
+                {"type": "string", "maxLength": 2000},
+                {"type": "null"},
+            ]
+        },
+        "market_signals": {
+            "type": "array",
+            "maxItems": 20,
+            "items": {"type": "string", "maxLength": 500},
+        },
+        "internal_relationship_summary": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4000,
+        },
+        "similar_deal_ids": {
+            "type": "array",
+            "maxItems": 20,
+            "items": {"type": "string"},
+        },
+        "risks": {
+            "type": "array",
+            "maxItems": 20,
+            "items": {"type": "string", "maxLength": 500},
+        },
+        "recommended_action": {"type": "string", "minLength": 1, "maxLength": 2000},
+        "sources": {
+            "type": "array",
+            "maxItems": 20,
+            "items": _DEEP_EVIDENCE_JSON_SCHEMA,
+        },
+    },
+}
+
 
 class ScoringBreakdown(BaseModel):
     business_fit: int
