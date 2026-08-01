@@ -9,6 +9,7 @@ from uuid import UUID, uuid4
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+from pydantic import ValidationError
 
 from app.core.config import Settings
 from app.core.errors import AppError
@@ -28,7 +29,9 @@ from app.integrations.web_research import build_web_research_provider
 from app.services.ai_clients import build_client
 from app.services.ai_provider_service import AiProviderService
 from app.services.ai_schemas import (
+    DEEP_RESEARCH_RESPONSE_SCHEMA,
     DEEP_RESEARCH_SYSTEM_PROMPT,
+    FAST_ASSESSMENT_RESPONSE_SCHEMA,
     FAST_ASSESSMENT_SYSTEM_PROMPT,
     deep_input_fingerprint,
     fast_input_fingerprint,
@@ -104,7 +107,7 @@ class AssessmentService:
             provider = self.providers.ensure_mock_default(tenant_id)
 
         fingerprint = fast_input_fingerprint(self._lead_payload(lead))
-        idempotency_key = f"fast:{lead.id}:{fingerprint}:{int(force)}"
+        idempotency_key = f"fast:{lead.id}:{provider.id}:{fingerprint}:{int(force)}"
 
         existing = self.db.scalar(
             select(AssessmentJob).where(
@@ -113,6 +116,16 @@ class AssessmentService:
             )
         )
         if existing is not None:
+            if existing.status in {JobStatus.failed, JobStatus.cancelled}:
+                existing.status = JobStatus.queued
+                existing.provider_id = provider.id
+                existing.error_message = None
+                existing.started_at = None
+                existing.finished_at = None
+                existing.assessment_id = None
+                lead.latest_assessment_status = "queued"
+                self.db.commit()
+                self.db.refresh(existing)
             return existing
 
         # Skip provider call for unchanged input unless forced — reuse succeeded assessment.
@@ -267,7 +280,7 @@ class AssessmentService:
             raise AppError("Provider not found", code="provider_not_found", status_code=404)
 
         fingerprint = deep_input_fingerprint(self._deep_payload(lead, fast_assessment))
-        idempotency_key = f"deep:{lead.id}:{fingerprint}:{int(force)}"
+        idempotency_key = f"deep:{lead.id}:{provider.id}:{fingerprint}:{int(force)}"
         existing = self.db.scalar(
             select(AssessmentJob).where(
                 AssessmentJob.tenant_id == tenant_id,
@@ -275,6 +288,16 @@ class AssessmentService:
             )
         )
         if existing is not None:
+            if existing.status in {JobStatus.failed, JobStatus.cancelled}:
+                existing.status = JobStatus.queued
+                existing.provider_id = provider.id
+                existing.base_assessment_id = fast_assessment.id
+                existing.error_message = None
+                existing.started_at = None
+                existing.finished_at = None
+                existing.assessment_id = None
+                self.db.commit()
+                self.db.refresh(existing)
             return existing
 
         if not force:
@@ -429,8 +452,25 @@ class AssessmentService:
                 system=FAST_ASSESSMENT_SYSTEM_PROMPT,
                 user=user_prompt,
                 model=provider.default_model,
+                response_schema=FAST_ASSESSMENT_RESPONSE_SCHEMA,
             )
-            result = validate_and_finalize(raw)
+            try:
+                result = validate_and_finalize(raw)
+            except (ValidationError, ValueError) as validation_error:
+                repair_prompt = (
+                    f"{user_prompt}\n\n"
+                    "Your previous JSON did not match the required response schema. "
+                    "Return a complete replacement object and do not omit required fields.\n"
+                    f"VALIDATION_ERROR:\n{str(validation_error)[:2000]}\n"
+                    f"PREVIOUS_JSON:\n{json.dumps(raw, default=str)[:12000]}"
+                )
+                repaired = client.complete_json(
+                    system=FAST_ASSESSMENT_SYSTEM_PROMPT,
+                    user=repair_prompt,
+                    model=provider.default_model,
+                    response_schema=FAST_ASSESSMENT_RESPONSE_SCHEMA,
+                )
+                result = validate_and_finalize(repaired)
         except Exception as exc:  # noqa: BLE001 — failed runs must be stored, not corrupt data
             logger.info("Fast assessment failed job_id=%s error=%s", job.id, type(exc).__name__)
             failed = LeadAssessment(
@@ -556,14 +596,41 @@ class AssessmentService:
                 system=DEEP_RESEARCH_SYSTEM_PROMPT,
                 user=user_prompt,
                 model=provider.default_model,
+                response_schema=DEEP_RESEARCH_RESPONSE_SCHEMA,
             )
-            result = validate_deep_and_finalize(
-                raw,
-                allowed_similar_deal_ids=allowed_ids,
-            )
+            try:
+                result = validate_deep_and_finalize(
+                    raw,
+                    allowed_similar_deal_ids=allowed_ids,
+                )
+            except (ValidationError, ValueError) as validation_error:
+                repair_prompt = (
+                    f"{user_prompt}\n\n"
+                    "Your previous JSON did not match the required response schema or "
+                    "selected a similar deal outside the allowed list. Return a complete "
+                    "replacement object.\n"
+                    f"VALIDATION_ERROR:\n{str(validation_error)[:2000]}\n"
+                    f"PREVIOUS_JSON:\n{json.dumps(raw, default=str)[:12000]}"
+                )
+                repaired = client.complete_json(
+                    system=DEEP_RESEARCH_SYSTEM_PROMPT,
+                    user=repair_prompt,
+                    model=provider.default_model,
+                    response_schema=DEEP_RESEARCH_RESPONSE_SCHEMA,
+                )
+                result = validate_deep_and_finalize(
+                    repaired,
+                    allowed_similar_deal_ids=allowed_ids,
+                )
         except Exception as exc:  # noqa: BLE001
             logger.info("Deep research failed job_id=%s error=%s", job.id, type(exc).__name__)
-            return self._fail_deep_job(job, lead, str(exc), provider_id=provider.id)
+            return self._fail_deep_job(
+                job,
+                lead,
+                str(exc),
+                provider_id=provider.id,
+                model_name=provider.default_model,
+            )
 
         # Re-read after the provider call so edits made while research was running
         # cannot be published as a current result.
@@ -667,6 +734,7 @@ class AssessmentService:
         error: str,
         *,
         provider_id: UUID | None = None,
+        model_name: str | None = None,
     ) -> LeadAssessment:
         failed = LeadAssessment(
             tenant_id=job.tenant_id,
@@ -675,6 +743,7 @@ class AssessmentService:
             provider_id=provider_id or job.provider_id,
             workflow=AssessmentWorkflow.deep_lead_research,
             status=AssessmentStatus.failed,
+            model_name=model_name,
             input_fingerprint=job.input_fingerprint,
             error_message=error[:2000],
         )
