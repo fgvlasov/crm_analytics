@@ -73,8 +73,14 @@ class OdooClient:
             try:
                 data = response.json()
                 if isinstance(data, dict):
-                    body_status = data.get("status")
-                    body_message = data.get("message")
+                    result_data = data.get("result")
+                    if isinstance(result_data, dict):
+                        # Accept a JSON-RPC envelope from older Odoo route deployments.
+                        body_status = result_data.get("status")
+                        body_message = result_data.get("message")
+                    else:
+                        body_status = data.get("status")
+                        body_message = data.get("message")
             except ValueError:
                 data = None
             http_ok = response.is_success

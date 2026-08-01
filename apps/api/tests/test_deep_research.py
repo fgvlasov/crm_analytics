@@ -234,6 +234,16 @@ def test_invalid_similar_deal_id_is_rejected():
         validate_deep_and_finalize(payload, allowed_similar_deal_ids={"allowed"})
 
 
+def test_deep_openai_schema_uses_supported_url_constraints():
+    from app.services.ai_schemas import DEEP_RESEARCH_RESPONSE_SCHEMA
+
+    source_url_schema = DEEP_RESEARCH_RESPONSE_SCHEMA["properties"]["sources"]["items"][
+        "properties"
+    ]["source_url"]
+    assert source_url_schema["type"] == "string"
+    assert "format" not in source_url_schema
+
+
 def test_evidence_is_tenant_scoped(
     client,
     demo_tenant,

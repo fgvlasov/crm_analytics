@@ -819,7 +819,11 @@ class AssessmentService:
                     f"ok:{result.get('status_code')}:{result.get('body_status')}"
                 )
             else:
-                detail = result.get("body_status") or result.get("error") or result
+                detail = (
+                    result.get("body_status")
+                    or result.get("error")
+                    or "invalid_odoo_response"
+                )
                 msg = result.get("body_message")
                 assessment.odoo_callback_status = (
                     f"fail:{result.get('status_code')}:{detail}"

@@ -76,7 +76,9 @@ _DEEP_EVIDENCE_JSON_SCHEMA = {
     "additionalProperties": False,
     "required": ["source_url", "title", "short_quote", "claim_supported", "confidence"],
     "properties": {
-        "source_url": {"type": "string", "format": "uri"},
+        # OpenAI Structured Outputs supports only a subset of JSON Schema formats.
+        # Pydantic's HttpUrl performs the URI validation after generation.
+        "source_url": {"type": "string", "minLength": 1, "maxLength": 2048},
         "title": {
             "anyOf": [
                 {"type": "string", "maxLength": 500},
