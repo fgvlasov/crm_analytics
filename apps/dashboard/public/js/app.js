@@ -10,6 +10,7 @@
 
   let selectedLeadId = null;
   let lastJobId = null;
+  let enabledFeatures = {};
 
   function show(el, on) {
     el.classList.toggle("hidden", !on);
@@ -51,6 +52,13 @@
       $("#api-status").textContent = "API down";
       $("#api-status").className = "pill bad";
     }
+    try {
+      const featureData = await LeadIntelApi.features();
+      enabledFeatures = featureData.features || {};
+    } catch {
+      enabledFeatures = {};
+    }
+    show($("#btn-queue-deep"), Boolean(enabledFeatures.deep_research));
     setRoute("overview");
   }
 
@@ -133,6 +141,42 @@
       assessEl.textContent = JSON.stringify(a, null, 2);
     } catch {
       assessEl.textContent = "No assessment yet.";
+    }
+    const deepResult = $("#deep-result");
+    show(deepResult, Boolean(enabledFeatures.deep_research));
+    if (enabledFeatures.deep_research) {
+      const deepEl = $("#lead-deep-body");
+      const evidenceEl = $("#lead-evidence");
+      evidenceEl.innerHTML = "";
+      try {
+        const deep = await LeadIntelApi.latestDeepAssessment(lead.id);
+        deepEl.textContent = JSON.stringify(deep, null, 2);
+        const evidence = await LeadIntelApi.assessmentEvidence(deep.id);
+        if (!evidence.length) {
+          evidenceEl.innerHTML = `<p class="muted">No public evidence was used for this run.</p>`;
+        }
+        evidence.forEach((item) => {
+          const card = document.createElement("article");
+          card.className = "feature-card";
+          card.innerHTML = `
+            <div class="flag">Confidence ${esc(item.confidence)}%</div>
+            <strong>${esc(item.title || item.source_url)}</strong>
+            <p>${esc(item.claim_supported)}</p>
+            <p class="muted">${esc(item.short_quote || "")}</p>
+            <button type="button" class="btn btn-sm">Open signed evidence</button>`;
+          card.querySelector("button").addEventListener("click", async () => {
+            try {
+              const signed = await LeadIntelApi.evidenceSignedUrl(item.id);
+              window.open(signed.url, "_blank", "noopener,noreferrer");
+            } catch (err) {
+              alert(err.message);
+            }
+          });
+          evidenceEl.appendChild(card);
+        });
+      } catch {
+        deepEl.textContent = "No Deep Research result yet.";
+      }
     }
   }
 
@@ -307,6 +351,17 @@
       alert(`Queued ${job.id}`);
       const lead = await LeadIntelApi.lead(selectedLeadId);
       await showLeadDetail(lead);
+    } catch (err) {
+      alert(err.message);
+    }
+  });
+
+  $("#btn-queue-deep")?.addEventListener("click", async () => {
+    if (!selectedLeadId) return;
+    try {
+      const job = await LeadIntelApi.queueDeep(selectedLeadId, true);
+      lastJobId = job.id;
+      alert(`Queued Deep Research ${job.id}`);
     } catch (err) {
       alert(err.message);
     }

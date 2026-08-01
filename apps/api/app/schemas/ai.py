@@ -51,9 +51,29 @@ class JobOut(BaseModel):
     input_fingerprint: str
     error_message: str | None
     assessment_id: UUID | None
+    base_assessment_id: UUID | None
     started_at: datetime | None
     finished_at: datetime | None
     created_at: datetime
+
+
+class EvidenceOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    assessment_id: UUID
+    source_url: str
+    title: str | None
+    short_quote: str | None
+    claim_supported: str
+    confidence: int
+    created_at: datetime
+
+
+class EvidenceUrlOut(BaseModel):
+    evidence_id: UUID
+    url: str
+    expires_in: int
 
 
 class AssessmentOut(BaseModel):

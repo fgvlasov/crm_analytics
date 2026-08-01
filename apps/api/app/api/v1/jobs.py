@@ -7,17 +7,28 @@ from app.api.deps import get_current_user
 from app.core.config import Settings, get_settings
 from app.core.errors import AppError
 from app.core.tenancy import require_feature
-from app.db.models.ai import JobStatus
+from app.db.models.ai import AssessmentWorkflow, JobStatus
 from app.db.models.tenant import TenantUser
 from app.db.session import get_db
-from app.schemas.ai import AssessmentOut, JobOut, QueueAssessmentRequest
+from app.schemas.ai import (
+    AssessmentOut,
+    EvidenceOut,
+    EvidenceUrlOut,
+    JobOut,
+    QueueAssessmentRequest,
+)
 from app.services.assessment_service import AssessmentService
+from app.services.object_storage import ObjectStorageService
 
 router = APIRouter(tags=["jobs"])
 
 
 def _fast_ai_enabled(settings: Settings = Depends(get_settings)) -> None:
     require_feature("fast_ai", settings)
+
+
+def _deep_research_enabled(settings: Settings = Depends(get_settings)) -> None:
+    require_feature("deep_research", settings)
 
 
 def get_assessment_service(
@@ -35,18 +46,27 @@ def queue_assessment(
     user: TenantUser = Depends(get_current_user),
     service: AssessmentService = Depends(get_assessment_service),
 ) -> JobOut:
-    if body.assessment_mode not in {"fast", "full"}:
+    if body.assessment_mode not in {"fast", "full", "deep"}:
         raise AppError(
-            "Only assessment_mode=fast|full supported in Phase 3 (deep is Phase 4)",
+            "assessment_mode must be fast, deep, or full",
             code="unsupported_mode",
             status_code=400,
         )
-    job = service.queue_fast(
-        tenant_id=user.tenant_id,
-        lead_id=lead_id,
-        force=body.force,
-        provider_id=body.provider_id,
-    )
+    if body.assessment_mode == "deep":
+        require_feature("deep_research", service.settings)
+        job = service.queue_deep(
+            tenant_id=user.tenant_id,
+            lead_id=lead_id,
+            force=body.force,
+            provider_id=body.provider_id,
+        )
+    else:
+        job = service.queue_fast(
+            tenant_id=user.tenant_id,
+            lead_id=lead_id,
+            force=body.force,
+            provider_id=body.provider_id,
+        )
     return JobOut.model_validate(job)
 
 
@@ -72,6 +92,58 @@ def latest_assessment(
     if row is None:
         raise AppError("No assessment yet", code="assessment_not_found", status_code=404)
     return AssessmentOut.model_validate(row)
+
+
+@router.get("/leads/{lead_id}/assessments/deep/latest", response_model=AssessmentOut)
+def latest_deep_assessment(
+    lead_id: UUID,
+    _: None = Depends(_deep_research_enabled),
+    user: TenantUser = Depends(get_current_user),
+    service: AssessmentService = Depends(get_assessment_service),
+) -> AssessmentOut:
+    row = service.latest_assessment(
+        user.tenant_id,
+        lead_id,
+        AssessmentWorkflow.deep_lead_research,
+    )
+    if row is None:
+        raise AppError("No Deep Research result yet", code="assessment_not_found", status_code=404)
+    return AssessmentOut.model_validate(row)
+
+
+@router.get(
+    "/assessments/{assessment_id}/evidence",
+    response_model=list[EvidenceOut],
+)
+def list_assessment_evidence(
+    assessment_id: UUID,
+    _: None = Depends(_deep_research_enabled),
+    user: TenantUser = Depends(get_current_user),
+    service: AssessmentService = Depends(get_assessment_service),
+) -> list[EvidenceOut]:
+    return [
+        EvidenceOut.model_validate(item)
+        for item in service.list_evidence(user.tenant_id, assessment_id)
+    ]
+
+
+@router.post("/evidence/{evidence_id}/signed-url", response_model=EvidenceUrlOut)
+def create_evidence_signed_url(
+    evidence_id: UUID,
+    _: None = Depends(_deep_research_enabled),
+    user: TenantUser = Depends(get_current_user),
+    service: AssessmentService = Depends(get_assessment_service),
+    settings: Settings = Depends(get_settings),
+) -> EvidenceUrlOut:
+    evidence = service.get_evidence(user.tenant_id, evidence_id)
+    if evidence is None:
+        raise AppError("Evidence not found", code="evidence_not_found", status_code=404)
+    expires_in = 300
+    url = ObjectStorageService(settings).signed_get_url(
+        evidence.object_key,
+        expires_seconds=expires_in,
+    )
+    return EvidenceUrlOut(evidence_id=evidence.id, url=url, expires_in=expires_in)
 
 
 @router.get("/jobs", response_model=list[JobOut])
