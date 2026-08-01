@@ -77,6 +77,55 @@ class MockAiClient:
             logger.info("Mock provider ignored embedded instruction attempt")
 
         text = user.lower()
+        if "deep-research schema" in system.lower():
+            allowed_ids: list[str] = []
+            try:
+                marker = "DEEP_RESEARCH_DATA:\n"
+                deep_data = json.loads(user.split(marker, 1)[1])
+                allowed_ids = [
+                    str(item["similar_deal_id"])
+                    for item in deep_data.get("similar_deals", [])[:2]
+                ]
+            except (IndexError, KeyError, TypeError, json.JSONDecodeError):
+                pass
+            website = ""
+            try:
+                website = str(deep_data.get("lead", {}).get("website") or "")
+            except UnboundLocalError:
+                pass
+            sources = []
+            if website.startswith(("http://", "https://")):
+                sources.append(
+                    {
+                        "source_url": website,
+                        "title": "Company website",
+                        "short_quote": None,
+                        "claim_supported": "CRM-provided official company website.",
+                        "confidence": 70,
+                    }
+                )
+            return {
+                "enhanced_scoring_breakdown": {
+                    "business_fit": 28,
+                    "project_potential": 18,
+                    "customer_quality": 12,
+                    "urgency": 10,
+                    "technical_completeness": 8,
+                    "geography": 9,
+                },
+                "identity_confidence": 82 if website else 55,
+                "commercial_relevance_confidence": 84,
+                "overall_assessment_confidence": 80 if website else 55,
+                "company_profile": "Mock deep profile based on CRM and internal history.",
+                "contact_professional_profile": "Professional role requires confirmation.",
+                "market_signals": ["Active industrial project inquiry"],
+                "internal_relationship_summary": "Internal CRM history was reviewed.",
+                "similar_deal_ids": allowed_ids,
+                "risks": ["Public identity evidence is limited"] if not website else [],
+                "recommended_action": "Validate decision makers and prepare a technical discovery call.",
+                "sources": sources,
+            }
+
         business_fit = 22
         project_potential = 14
         urgency = 8

@@ -17,7 +17,7 @@ from sqlalchemy import (
     UniqueConstraint,
     Uuid,
 )
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, TimestampMixin
 
@@ -57,6 +57,7 @@ class AssessmentStatus(str, enum.Enum):
     running = "running"
     succeeded = "succeeded"
     failed = "failed"
+    stale = "stale"
 
 
 class AiProviderConnection(TimestampMixin, Base):
@@ -137,6 +138,16 @@ class AssessmentJob(TimestampMixin, Base):
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     assessment_id: Mapped[UUID | None] = mapped_column(Uuid, nullable=True)
+    base_assessment_id: Mapped[UUID | None] = mapped_column(
+        Uuid,
+        ForeignKey(
+            "lead_assessments.id",
+            ondelete="SET NULL",
+            use_alter=True,
+            name="fk_assessment_jobs_base_assessment_id_lead_assessments",
+        ),
+        nullable=True,
+    )
 
 
 class LeadAssessment(TimestampMixin, Base):
@@ -188,3 +199,23 @@ class LeadAssessment(TimestampMixin, Base):
     result_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     odoo_callback_status: Mapped[str | None] = mapped_column(String(64), nullable=True)
+
+
+class AssessmentEvidence(TimestampMixin, Base):
+    """Validated evidence metadata. Object keys are private and exposed via signed URLs only."""
+
+    __tablename__ = "assessment_evidence"
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    tenant_id: Mapped[UUID] = mapped_column(
+        Uuid, ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    assessment_id: Mapped[UUID] = mapped_column(
+        Uuid, ForeignKey("lead_assessments.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    source_url: Mapped[str] = mapped_column(String(2048), nullable=False)
+    title: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    short_quote: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    claim_supported: Mapped[str] = mapped_column(Text, nullable=False)
+    confidence: Mapped[int] = mapped_column(Integer, nullable=False)
+    object_key: Mapped[str] = mapped_column(String(1024), nullable=False, unique=True)

@@ -87,8 +87,8 @@
             <div class="panel">
               <h2>Pipeline focus</h2>
               <p class="muted">
-                Phase 3: Fast AI scoring is available when FEATURE_FAST_AI is enabled.
-                Odoo sync queues a fast assessment after each lead upsert.
+                Fast AI scores normalized CRM data. Phase 4 Deep Research adds internal
+                history, similar deals, optional public research, and private evidence.
               </p>
               <ul id="feature-hints" class="hint-list"></ul>
             </div>
@@ -121,10 +121,17 @@
               <div class="toolbar">
                 <h2 id="lead-detail-title" style="margin:0;flex:1">Lead</h2>
                 <button type="button" id="btn-queue-fast" class="btn primary">Queue Fast AI</button>
+                <button type="button" id="btn-queue-deep" class="btn primary hidden">Queue Deep Research</button>
                 <button type="button" id="btn-run-latest-job" class="btn">Run job now</button>
               </div>
               <pre id="lead-detail-body" class="code-block"></pre>
+              <h2>Fast Assessment</h2>
               <pre id="lead-assessment-body" class="code-block"></pre>
+              <div id="deep-result" class="hidden">
+                <h2>Deep Research</h2>
+                <pre id="lead-deep-body" class="code-block"></pre>
+                <div id="lead-evidence" class="stack"></div>
+              </div>
             </aside>
           </div>
 

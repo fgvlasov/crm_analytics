@@ -1,4 +1,4 @@
-"""Background worker loop for Phase 3 Fast Assessment jobs.
+"""Background worker loop for Fast Assessment and Deep Research jobs.
 
 Polls the database for queued jobs. Long-running AI work must never run inside HTTP requests.
 """
@@ -38,8 +38,9 @@ def main() -> None:
     settings = get_settings()
     setup_logging(settings.log_level)
     logger.info(
-        "LeadIntel worker started feature_fast_ai=%s feature_odoo=%s",
+        "LeadIntel worker started feature_fast_ai=%s feature_deep=%s feature_odoo=%s",
         settings.feature_fast_ai,
+        settings.feature_deep_research,
         settings.feature_odoo_connector,
     )
     while True:

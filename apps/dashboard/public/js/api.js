@@ -69,8 +69,22 @@ const LeadIntelApi = (() => {
         method: "POST",
         body: { assessment_mode: "fast", force },
       }),
+    queueDeep: (leadId, force = false) =>
+      request(`/api/v1/leads/${leadId}/assessments/queue`, {
+        method: "POST",
+        body: { assessment_mode: "deep", force },
+      }),
     latestAssessment: (leadId) =>
       request(`/api/v1/leads/${leadId}/assessments/latest`),
+    latestDeepAssessment: (leadId) =>
+      request(`/api/v1/leads/${leadId}/assessments/deep/latest`),
+    assessmentEvidence: (assessmentId) =>
+      request(`/api/v1/assessments/${assessmentId}/evidence`),
+    evidenceSignedUrl: (evidenceId) =>
+      request(`/api/v1/evidence/${evidenceId}/signed-url`, {
+        method: "POST",
+        body: {},
+      }),
     runJob: (jobId) => request(`/api/v1/jobs/${jobId}/run`, { method: "POST", body: {} }),
   };
 })();

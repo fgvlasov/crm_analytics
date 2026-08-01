@@ -2,7 +2,8 @@
 
 Multi-tenant B2B lead intelligence platform: Odoo integration, AI scoring, tender and web collectors, client dashboard.
 
-This repository is in **Phase 1**: monorepo, backend foundation, tenants, auth, secrets, feature flags.
+This repository implements **Phase 4**: Deep Research on top of the foundation, Odoo
+connector, and Fast AI assessment.
 
 Requirements pack: [`.cursorrules/`](.cursorrules/) — start with [`00_README.md`](.cursorrules/00_README.md) and [`18_PHASED_DEVELOPMENT_PLAN.md`](.cursorrules/18_PHASED_DEVELOPMENT_PLAN.md).
 
@@ -51,12 +52,16 @@ curl -s -X POST http://localhost:8000/api/v1/auth/login \
 ```env
 FEATURE_ODOO_CONNECTOR=true
 FEATURE_FAST_AI=true
-FEATURE_DEEP_RESEARCH=false
+FEATURE_DEEP_RESEARCH=true
 FEATURE_SMART_RPT=false
 FEATURE_WEB_NEWS_COLLECTORS=false
 ```
 
 Phase 3 Fast AI: providers at `/api/v1/providers`, queue at `/api/v1/leads/{id}/assessments/queue`, worker processes jobs via `python -m app.scripts.worker_loop`.
+
+Phase 4 Deep Research: first complete a Fast Assessment, then queue with
+`{"assessment_mode":"deep"}` at the same endpoint. See
+[`docs/deep_research.md`](docs/deep_research.md).
 
 Inspect active flags: `GET /api/v1/features`
 
