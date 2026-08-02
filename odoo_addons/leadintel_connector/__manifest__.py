@@ -1,6 +1,6 @@
 {
     "name": "LeadIntel Connector",
-    "version": "19.0.1.4.0",
+    "version": "19.0.1.5.0",
     "category": "Sales/CRM",
     "summary": "Connect Odoo CRM to LeadIntel SaaS for lead sync and AI assessments",
     "description": """
@@ -15,7 +15,7 @@ Bridges Odoo 19 CRM with the LeadIntel SaaS platform.
 
 Install is safe: no external HTTP calls during module installation.
 """,
-    "author": "Coldex / LeadIntel",
+    "author": "Teodoo / LeadIntel",
     "license": "LGPL-3",
     "depends": ["base", "crm", "mail", "web"],
     "data": [

@@ -94,12 +94,12 @@
                 <field name="leadintel_deep_contact_profile" nolabel="1" colspan="2"/>
               </group>
               <group>
-                <group string="Market Signals">
+                <separator string="Market Signals">
                   <field name="leadintel_deep_market_signals" nolabel="1"/>
-                </group>
-                <group string="Risks">
+                
+                <separator string="Risks"/>
                   <field name="leadintel_deep_risks" nolabel="1"/>
-                </group>
+                
               </group>
               <group string="Internal Relationship Summary">
                 <field name="leadintel_deep_internal_relationship" nolabel="1" colspan="2"/>
